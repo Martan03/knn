@@ -25,6 +25,8 @@ Pro zlepšení extrakce stylu psaní z~co nejméně ukázek textu plánujeme vyu
 komponentu obsahující vysoké frekvencence z~ukázky textu v podobě
 vysokofrekvenčního stylového kodéru.
 
+Implementačním jazykem jsme zvolili Python v kombinaci s knihovnou PyTorch.
+
 == Inspirace
 
 Na základě našeho průzkumu již existujících projektů na námi vybrané téma jsme
