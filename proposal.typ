@@ -16,16 +16,32 @@ se má využít pro generování obrázku obsahující psaný text, a~obrázek o
 referenční psaný text, sloužící jako reference stylu písma.
 
 Textový obsah se pošle do kodéru obsahu a referenční psaný text se
-pošle do kodéru stylu písma. Jejich výstupy jsou následně smíchány a~je
-zkonstruován vektor podmínek. Následuje samotný odšumovací proces, který začíná
+pošle do kodéru stylu písma. Jejich výstupy jsou následně smíchány, což je
+využito při generování. Následuje samotný odšumovací proces, který začíná
 s~gausovským šumem jako vstupem a~postupně jej odšumuje na základě
-zkonstruovaného vektoru podmínek, který tento proces řídí.
+smíchaných vstupů, které tento proces řídí.
 
 Pro zlepšení extrakce stylu psaní z~co nejméně ukázek textu plánujeme využít
 komponentu obsahující vysoké frekvencence z~ukázky textu v podobě
 vysokofrekvenčního stylového kodéru.
 
 Implementačním jazykem jsme zvolili Python v kombinaci s knihovnou PyTorch.
+Pro extrakci stylu písma využijeme poskytnutý předtrénovaný model. Samotný
+difuzní model budeme implementovat pomocí
+#link("https://github.com/facebookresearch/DiT")[DiT].
+
+== Hodnocení učení
+
+Pro evaluaci učení z~výsledného obrázku přečteme text pomocí OCR a~vyhodnotíme
+Character Error Rate. Dále také extrahujeme styl písma z~výstupního obrázku,
+který následně porovnáme s~referenčním textem, což oveří podobnost stylu
+písma.
+
+== Experiment
+
+Budeme zkoušet porovnávat kvalitu generování obrázku vůči množství ukázkového
+textu. Také vyzkoušíme různé parametry a~hledat, kdy se model bude učit
+nejlépe.
 
 == Inspirace
 
