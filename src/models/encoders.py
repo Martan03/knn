@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 from torch import nn
 from torchtext.functional import to_tensor
@@ -6,10 +8,10 @@ from torchvision.models import ResNet18_Weights, resnet18
 
 
 class ContentEncoder(nn.Module):
-    def __init__(self, output_dim=768):
+    def __init__(self):
         super().__init__()
         self.roberta = ROBERTA_BASE_ENCODER.get_model()
-        self.projection = nn.Linear(768, output_dim)
+        self.dimensions = 768
 
     def transform(self, text):
         assert ROBERTA_BASE_ENCODER.transform
@@ -17,69 +19,57 @@ class ContentEncoder(nn.Module):
 
     def forward(self, x):
         # May somehow swap dimensions before IDK
-        return self.projection(self.roberta(x))
+        return self.roberta(x).avg(axis=1)
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self, output_dim=512):
+    def __init__(self):
         super().__init__()
         resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
         self.resnet = nn.Sequential(*(list(resnet.children())[:-1]))
-
-        self.projection = nn.Linear(512, output_dim)
+        self.dimensions = 512
 
     def forward(self, x):
-        features = torch.flatten(self.resnet(x), 1)
-        return self.projection(features)
+        return torch.flatten(self.resnet(x), 1)
 
 
 class LabelEncoder(nn.Module):
-    def __init__(self, output_dim=768):
+    def __init__(self, dropout_prob: float, output_dim: Optional[int] = None):
         super().__init__()
-        self.style_enc = StyleEncoder(output_dim)
-        self.content_enc = ContentEncoder(output_dim)
+        self.style_enc = StyleEncoder()
+        self.content_enc = ContentEncoder()
+        dims = self.style_enc.dimensions + self.content_enc.dimensions
+        self.dimensions = output_dim if output_dim else dims
+        self.none_label = torch.zeros(self.dimensions)
+        self.projection = nn.Linear(dims, self.dimensions)
+        self.dropout_prob = dropout_prob
 
     def text_transform(self, text):
         self.content_enc.transform(text)
-
-    def forward(self, style, content):
-        # [Batch, 1, 768]
-        style = self.style_enc(style).unsqueeze(1)
-        # [Batch, Seq, 768]
-        content = self.content_enc(content)
-        # Maybe somehow swap dimensions before and use different dimension to
-        # concat IDK
-        # [Batch, Seq + 1, 768]
-        return torch.cat([style, content], dim=1)
-
-
-class LabelEmbedder(nn.Module):
-    """
-    Embeds class labels into vector representations. Also handles label dropout for classifier-free guidance.
-    """
-
-    def __init__(self, hidden_size, dropout_prob):
-        super().__init__()
-        use_cfg_embedding = dropout_prob > 0
-        self.labels = LabelEncoder(hidden_size)
-        self.dropout_prob = dropout_prob
+    
+    def initialize_weights(self):
+        assert self.projection.weights is torch.Tensor
+        nn.init.normal_(self.projection.weights, std=0.02)
 
     def token_drop(self, labels, force_drop_ids=None):
         """
         Drops labels to enable classifier-free guidance.
         """
+        drop_ids = torch.Tensor()
         if force_drop_ids is None:
-            drop_ids = (
-                torch.rand(labels.shape[0], device=labels.device) < self.dropout_prob
-            )
+            rands = torch.rand(labels.shape[0], device=labels.device)
+            drop_ids = rands < self.dropout_prob
         else:
-            drop_ids = force_drop_ids == 1
-        labels = torch.where(drop_ids, self.num_classes, labels)
+            drop_ids = torch.Tensor(force_drop_ids == 1)
+        labels = torch.where(drop_ids, self.none_label, labels)
         return labels
 
-    def forward(self, labels, train, force_drop_ids=None):
+    def forward(self, style, content, train, force_drop_ids=None):
+        style = self.style_enc(style)
+        content = self.content_enc(content)
+
         use_dropout = self.dropout_prob > 0
+        labels = style.cat(content)
         if (train and use_dropout) or (force_drop_ids is not None):
             labels = self.token_drop(labels, force_drop_ids)
-        embeddings = self.embedding_table(labels)
-        return embeddings
+        return self.projection(labels)

@@ -18,6 +18,8 @@ from timm.layers.attention import Attention
 from timm.layers.mlp import Mlp
 from timm.layers.patch_embed import PatchEmbed
 
+from src.models.encoders import LabelEncoder
+
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
@@ -73,44 +75,49 @@ class TimestepEmbedder(nn.Module):
         return t_emb
 
 
-class LabelEmbedder(nn.Module):
-    """
-    Embeds class labels into vector representations. Also handles label dropout for classifier-free guidance.
-    """
+# class LabelEmbedder(nn.Module):
+#     """
+#     Embeds class labels into vector representations. Also handles label dropout for classifier-free guidance.
+#     """
 
-    def __init__(self, num_classes, hidden_size, dropout_prob):
-        super().__init__()
-        use_cfg_embedding = dropout_prob > 0
-        self.embedding_table = nn.Embedding(
-            num_classes + use_cfg_embedding, hidden_size
-        )
-        self.num_classes = num_classes
-        self.dropout_prob = dropout_prob
+#     def __init__(self, num_classes, hidden_size, dropout_prob):
+#         super().__init__()
+#         use_cfg_embedding = dropout_prob > 0
+#         self.embedding_table = nn.Embedding(
+#             num_classes + use_cfg_embedding, hidden_size
+#         )
+#         self.num_classes = num_classes
+#         self.dropout_prob = dropout_prob
 
-    def token_drop(self, labels, force_drop_ids=None):
-        """
-        Drops labels to enable classifier-free guidance.
-        """
-        if force_drop_ids is None:
-            drop_ids = (
-                torch.rand(labels.shape[0], device=labels.device) < self.dropout_prob
-            )
-        else:
-            drop_ids = force_drop_ids == 1
-        labels = torch.where(drop_ids, self.num_classes, labels)
-        return labels
+#     def token_drop(self, labels, force_drop_ids=None):
+#         """
+#         Drops labels to enable classifier-free guidance.
+#         """
+#         if force_drop_ids is None:
+#             drop_ids = (
+#                 torch.rand(labels.shape[0], device=labels.device) < self.dropout_prob
+#             )
+#         else:
+#             drop_ids = force_drop_ids == 1
+#         labels = torch.where(drop_ids, self.num_classes, labels)
+#         return labels
 
-    def forward(self, labels, train, force_drop_ids=None):
-        use_dropout = self.dropout_prob > 0
-        if (train and use_dropout) or (force_drop_ids is not None):
-            labels = self.token_drop(labels, force_drop_ids)
-        embeddings = self.embedding_table(labels)
-        return embeddings
+#     def forward(self, labels, train, force_drop_ids=None):
+#         use_dropout = self.dropout_prob > 0
+#         if (train and use_dropout) or (force_drop_ids is not None):
+#             labels = self.token_drop(labels, force_drop_ids)
+#         embeddings = self.embedding_table(labels)
+#         return embeddings
 
 
 #################################################################################
 #                                 Core DiT Model                                #
 #################################################################################
+
+
+class TanhGELU(nn.GELU):
+    def __init__(self):
+        super().__init__(approximate="tanh")
 
 
 class DiTBlock(nn.Module):
@@ -127,12 +134,10 @@ class DiTBlock(nn.Module):
         self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
 
-        approx_gelu = lambda: nn.GELU(approximate="tanh")
-
         self.mlp = Mlp(
             in_features=hidden_size,
             hidden_features=mlp_hidden_dim,
-            act_layer=approx_gelu,
+            act_layer=TanhGELU,
             drop=0,
         )
         self.adaLN_modulation = nn.Sequential(
@@ -203,7 +208,7 @@ class DiT(nn.Module):
             input_size, patch_size, in_channels, hidden_size, bias=True
         )
         self.t_embedder = TimestepEmbedder(hidden_size)
-        self.y_embedder = LabelEmbedder(num_classes, hidden_size, class_dropout_prob)
+        self.y_embedder = LabelEncoder(class_dropout_prob, hidden_size)
         num_patches = self.x_embedder.num_patches
         # Will use fixed sin-cos embedding:
         self.pos_embed = nn.Parameter(
@@ -243,7 +248,7 @@ class DiT(nn.Module):
         nn.init.constant_(self.x_embedder.proj.bias, 0)
 
         # Initialize label embedding table:
-        nn.init.normal_(self.y_embedder.embedding_table.weight, std=0.02)
+        self.y_embedder.initialize_weights()
 
         # Initialize timestep embedding MLP:
         assert self.t_embedder.mlp[0].weight is torch.Tensor
