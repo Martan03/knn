@@ -6,6 +6,7 @@
 
 import enum
 import math
+from typing import Any
 
 import numpy as np
 import torch as th
@@ -358,7 +359,7 @@ class GaussianDiffusion:
             - pred_xstart
         ) / _extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
 
-    def condition_mean(self, cond_fn, p_mean_var, x, t, model_kwargs=None):
+    def condition_mean(self, cond_fn, p_mean_var, x, t, model_kwargs: dict[str, Any]={}):
         """
         Compute the mean for the previous step, given a function cond_fn that
         computes the gradient of a conditional log probability with respect to
@@ -372,7 +373,7 @@ class GaussianDiffusion:
         )
         return new_mean
 
-    def condition_score(self, cond_fn, p_mean_var, x, t, model_kwargs=None):
+    def condition_score(self, cond_fn, p_mean_var, x, t, model_kwargs={}):
         """
         Compute what the p_mean_variance output would have been, should the
         model's score function be conditioned by cond_fn.
@@ -400,7 +401,7 @@ class GaussianDiffusion:
         clip_denoised=True,
         denoised_fn=None,
         cond_fn=None,
-        model_kwargs=None,
+        model_kwargs={},
     ):
         """
         Sample x_{t-1} from the model at the given timestep.
@@ -467,7 +468,7 @@ class GaussianDiffusion:
         :param progress: if True, show a tqdm progress bar.
         :return: a non-differentiable batch of samples.
         """
-        final = None
+        final = {}
         for sample in self.p_sample_loop_progressive(
             model,
             shape,
@@ -638,7 +639,7 @@ class GaussianDiffusion:
         Generate samples from the model using DDIM.
         Same usage as p_sample_loop().
         """
-        final = None
+        final = {}
         for sample in self.ddim_sample_loop_progressive(
             model,
             shape,

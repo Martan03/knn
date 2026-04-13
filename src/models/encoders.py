@@ -45,8 +45,8 @@ class LabelEncoder(nn.Module):
         self.dropout_prob = dropout_prob
 
     def text_transform(self, text):
-        self.content_enc.transform(text)
-    
+        return self.content_enc.transform(text)
+
     def initialize_weights(self):
         assert self.projection.weights is torch.Tensor
         nn.init.normal_(self.projection.weights, std=0.02)
