@@ -59,20 +59,21 @@ def prep_img_base(file, res_h=64):
         image = image.resize((w, res_h))
 
     image = np.array(image).astype(np.float32)
-    image = (image / 127.5) - 1.0
-    return -image
+    return image
 
 
 def prep_img(file, res_h=64):
     image = prep_img_base(file, res_h)
+    image /= 255
     image = np.transpose(image, (2, 0, 1)).astype(np.float32)
     return torch.tensor(image, dtype=torch.float)
 
 
 def wrapping_prep_img(file, wrap_size=256, res_h=64):
     img = prep_img_base(file, res_h)
+    img = (img / 127.5) - 1.0
 
-    res = np.zeros((wrap_size, wrap_size, img.shape[2]))
+    res = np.ones((wrap_size, wrap_size, img.shape[2]))
 
     splits = range(wrap_size, wrap_size // res_h * wrap_size, wrap_size)
     for i, t in enumerate(np.split(img, splits, axis=1)):
