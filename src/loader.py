@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.utils import save_image
 
 
 class IAMDataset(Dataset):
@@ -80,9 +81,13 @@ def wrapping_prep_img(file, wrap_size=256, res_h=64):
         h, w, _ = t.shape
         if w == 0:
             break
-        res[i : i + h, 0:w, :] = t
+        pos = i * h
+        res[pos : pos + h, 0:w, :] = t
 
     img = np.transpose(res, (2, 0, 1))
+
+    samples = torch.Tensor(img)
+    save_image(samples, "test.png", nrow=4, normalize=True, value_range=(-1, 1))
 
     return torch.tensor(img, dtype=torch.float)
 

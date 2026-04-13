@@ -3,11 +3,13 @@ from diffusers.models.autoencoders.autoencoder_kl import AutoencoderKL
 from torchvision.utils import save_image
 
 from src.diffusion import create_diffusion
-from src.loader import prep_img
+from src.loader import prep_img, wrapping_prep_img
 from src.models.dit import DiT_S_8
 
 
 def sample(args):
+    test = wrapping_prep_img(args.style)
+    return
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(args.model, map_location=device)
 
@@ -32,10 +34,8 @@ def sample(args):
         device=device,
     )
     z = torch.cat([z, z], 0)
-    txt = {
-        k: torch.cat([v, torch.zeros_like(v)], 0).to(device) for k, v in txt.items()
-    }
-    #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
+    txt = {k: torch.cat([v, torch.zeros_like(v)], 0).to(device) for k, v in txt.items()}
+    # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
     style = style.unsqueeze(0)
     style = torch.cat([style, torch.ones_like(style)], 0)
     model_kwargs = {
