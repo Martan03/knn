@@ -27,7 +27,7 @@ def main():
         "-e", "--epochs", default=10, type=int, help="Number of training epochs"
     )
     train_parser.add_argument(
-        "-b", "--batch", default=64, type=int, help="Batch size used for training"
+        "-b", "--batch", default=2, type=int, help="Batch size used for training"
     )
 
     _run_parser = subparsers.add_parser("run", help="Runs the model")

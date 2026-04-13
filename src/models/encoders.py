@@ -14,14 +14,14 @@ class ContentEncoder(nn.Module):
         self.dimensions = 768
 
     def transform(self, text):
-        return self.tokenizer(text, padding=True, truncation=True, returns_tensors="pt")
+        return self.tokenizer(text, padding=True, truncation=True, return_tensors="pt")
 
     def forward(self, x):
         # May somehow swap dimensions before IDK
         outputs = self.roberta(
-            inputs_ids=x["input_ids"], attention_mask=x["attention_mask"]
+            input_ids=x["input_ids"], attention_mask=x["attention_mask"]
         )
-        return outputs.avg(axis=1)
+        return outputs.last_hidden_state.mean(dim=1)
 
 
 class StyleEncoder(nn.Module):
@@ -63,7 +63,9 @@ class LabelEncoder(nn.Module):
             drop_ids = rands < self.dropout_prob
         else:
             drop_ids = torch.Tensor(force_drop_ids == 1)
-        labels = torch.where(drop_ids, self.none_label, labels)
+
+        none_label = torch.zeros_like(labels)
+        labels = torch.where(drop_ids.unsqueeze(1), none_label, labels)
         return labels
 
     def forward(self, style, content, train, force_drop_ids=None):
@@ -71,7 +73,7 @@ class LabelEncoder(nn.Module):
         content = self.content_enc(content)
 
         use_dropout = self.dropout_prob > 0
-        labels = style.cat(content)
+        labels = torch.cat([style, content], dim=1)
         if (train and use_dropout) or (force_drop_ids is not None):
             labels = self.token_drop(labels, force_drop_ids)
         return self.projection(labels)
