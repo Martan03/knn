@@ -72,7 +72,7 @@ class LabelEncoder(nn.Module):
             )
             for k, v in content.items()
         }
-        none_style = torch.zeros_like(style, device=style.device)
+        none_style = torch.ones_like(style, device=style.device)
         style = torch.where(
             drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style
         )

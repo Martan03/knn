@@ -37,7 +37,7 @@ def sample(args):
     }
     #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
     style = style.unsqueeze(0)
-    style = torch.cat([style, torch.zeros_like(style)], 0)
+    style = torch.cat([style, torch.ones_like(style)], 0)
     model_kwargs = {
         "content": txt,
         "style": style,
