@@ -14,7 +14,9 @@ class IAMDataset(Dataset):
         e.g. labels="dataset/IAM64_train.txt", data="dataset/IAM64-new/test"
         """
         self.writer_dict = parse_labels(labels)
-        self.data = [d for list in itertools.islice(self.writer_dict.values(), 50) for d in list]
+        self.data = [
+            d for list in itertools.islice(self.writer_dict.values(), 10) for d in list
+        ]
         self.data_folder = data
         self.generator = np.random.default_rng()
 

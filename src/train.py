@@ -20,8 +20,8 @@ class Trainer:
     def __init__(self, args):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.result_dir = Path(args.result_dir)
-        os.mkdir(self.result_dir)
+        self.result_dir = Path(args.output)
+        self.result_dir.mkdir(exist_ok=True)
 
         img_size = 256
         self.latent_size = img_size // 8
@@ -126,7 +126,7 @@ class Trainer:
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
-            data["transcription"], data["style"], str(self.result_dir / "latest.png")
+            data["transcript"], data["style"], str(self.result_dir / "latest.png")
         )
 
         self.label_enc.train()
@@ -177,6 +177,7 @@ class Trainer:
         model_kwargs = {
             "content": txt,
             "style": style.unsqueeze(1),
+            "cfg_scale": 4.,
         }
 
         samples = self.diffusion.p_sample_loop(
