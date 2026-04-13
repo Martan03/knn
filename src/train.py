@@ -172,12 +172,19 @@ class Trainer:
             self.latent_size,
             device=self.device,
         )
+        z = torch.cat([z, z], 0)
+        txt = {
+            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device) for k, v in txt.items()
+        }
+        #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
+        style = style.unsqueeze(0)
+        style = torch.cat([style, torch.zeros_like(style)], 0)
         model_kwargs = {
             "content": txt,
-            "style": style.unsqueeze(1),
-            "cfg_scale": 4.,
+            "style": style,
+            "cfg_scale": 4.0,
         }
-
+    
         samples = self.diffusion.p_sample_loop(
             self.ema.forward_with_cfg,
             z.shape,

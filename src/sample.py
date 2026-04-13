@@ -16,10 +16,11 @@ def sample(args):
     ema = DiT_S_8(input_size=latent_size).to(device)
     vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(device)
     ema.load_state_dict(checkpoint["ema"])
+    ema.eval()
 
     diffusion = create_diffusion("250")
 
-    style = prep_img(args.style)
+    style = prep_img(args.style).to(device)
     text = args.text
 
     txt = ema.y_embedder.text_transform([text], device)
@@ -30,9 +31,16 @@ def sample(args):
         latent_size,
         device=device,
     )
+    z = torch.cat([z, z], 0)
+    txt = {
+        k: torch.cat([v, torch.zeros_like(v)], 0).to(device) for k, v in txt.items()
+    }
+    #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
+    style = style.unsqueeze(0)
+    style = torch.cat([style, torch.zeros_like(style)], 0)
     model_kwargs = {
         "content": txt,
-        "style": style.unsqueeze(1),
+        "style": style,
         "cfg_scale": 4.0,
     }
 
@@ -48,5 +56,3 @@ def sample(args):
     samples, _ = samples.chunk(2, dim=0)
     samples = vae.decode(samples / 0.18215).sample
     save_image(samples, args.output, nrow=4, normalize=True, value_range=(-1, 1))
-
-    pass

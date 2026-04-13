@@ -53,27 +53,31 @@ class LabelEncoder(nn.Module):
     def initialize_weights(self):
         nn.init.normal_(self.projection.weight, std=0.02)
 
-    def token_drop(self, labels, force_drop_ids=None):
+    def token_drop(self, style, content, force_drop_ids=None):
         """
         Drops labels to enable classifier-free guidance.
         """
         drop_ids = torch.Tensor()
         if force_drop_ids is None:
-            rands = torch.rand(labels.shape[0], device=labels.device)
+            rands = torch.rand(style.shape[0], device=style.device)
             drop_ids = rands < self.dropout_prob
         else:
             drop_ids = torch.Tensor(force_drop_ids == 1)
 
-        none_label = torch.zeros_like(labels)
-        labels = torch.where(drop_ids.unsqueeze(1), none_label, labels)
-        return labels
+        content = {
+            k: torch.where(drop_ids.unsqueeze(1), torch.zeros_like(v), v) for k, v in content.items()
+        }
+        none_style = torch.zeros_like(style)
+        style = torch.where(drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style)
+        return style, content
 
     def forward(self, style, content, train, force_drop_ids=None):
+        use_dropout = self.dropout_prob > 0
+        if (train and use_dropout) or (force_drop_ids is not None):
+            style, content = self.token_drop(style, content, force_drop_ids)
+            
         style = self.style_enc(style)
         content = self.content_enc(content)
-
-        use_dropout = self.dropout_prob > 0
+        
         labels = torch.cat([style, content], dim=1)
-        if (train and use_dropout) or (force_drop_ids is not None):
-            labels = self.token_drop(labels, force_drop_ids)
         return self.projection(labels)
