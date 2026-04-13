@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 
+from src.sample import sample
 from src.train import Trainer
 
 
@@ -29,7 +30,11 @@ def main():
         "-b", "--batch", default=32, type=int, help="Batch size used for training"
     )
     train_parser.add_argument(
-        "-o", "--output", default=Path("trained"), type=Path, help="directory with resulting trained models"
+        "-o",
+        "--output",
+        default=Path("trained"),
+        type=Path,
+        help="directory with resulting trained models",
     )
 
     run_parser = subparsers.add_parser("run", help="Runs the model")
@@ -60,7 +65,7 @@ def main():
         trainer.train()
         trainer.save("last.pt")
     elif args.command == "run":
-        print("Not implemented...")
+        sample(args)
 
 
 if __name__ == "__main__":

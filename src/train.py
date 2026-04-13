@@ -36,13 +36,13 @@ class Trainer:
         vae = AutoencoderKL.from_pretrained(f"stabilityai/sd-vae-ft-{vae_type}")
         self.vae = vae.to(self.device)
 
-        self.label_enc = LabelEncoder(0.1).to(self.device)
-        self.label_enc.initialize_weights()
+        # self.label_enc = LabelEncoder(0.1).to(self.device)
+        # self.label_enc.initialize_weights()
 
         self.opt = torch.optim.AdamW(
             [
                 {"params": self.model.parameters()},
-                {"params": self.label_enc.parameters()},
+                # {"params": self.label_enc.parameters()},
             ],
             lr=1e-4,
             weight_decay=0,
@@ -71,7 +71,7 @@ class Trainer:
     def train(self):
         update_ema(self.ema, self.model, decay=0)
         self.model.train()
-        self.label_enc.train()
+        # self.label_enc.train()
 
         best_score = float("inf")
         best_loss = float("inf")
@@ -101,7 +101,7 @@ class Trainer:
             t = torch.randint(
                 0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
             )
-            y = self.label_enc.text_transform(d["transcript"], self.device)
+            y = self.model.y_embedder.text_transform(d["transcript"], self.device)
             model_kwargs = {
                 "content": y,
                 "style": d["style"],
@@ -121,15 +121,13 @@ class Trainer:
 
     @torch.no_grad()
     def eval(self) -> float:
-        self.label_enc.eval()
+        self.ema.y_embedder.eval()
 
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
             data["transcript"], data["style"], str(self.result_dir / "latest.png")
         )
-
-        self.label_enc.train()
 
         return 0
 
@@ -166,7 +164,7 @@ class Trainer:
         return 0
 
     def sample(self, text: str, style: torch.Tensor, file: str):
-        txt = self.label_enc.text_transform([text], self.device)
+        txt = self.ema.y_embedder.text_transform([text], self.device)
         z = torch.randn(
             1,
             4,
