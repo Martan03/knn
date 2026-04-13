@@ -2,24 +2,26 @@ from typing import Optional
 
 import torch
 from torch import nn
-from torchtext.functional import to_tensor
-from torchtext.models import ROBERTA_BASE_ENCODER
 from torchvision.models import ResNet18_Weights, resnet18
+from transformers import RobertaModel, RobertaTokenizer
 
 
 class ContentEncoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.roberta = ROBERTA_BASE_ENCODER.get_model()
+        self.tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
+        self.roberta = RobertaModel.from_pretrained("roberta-base")
         self.dimensions = 768
 
     def transform(self, text):
-        assert ROBERTA_BASE_ENCODER.transform
-        return to_tensor(ROBERTA_BASE_ENCODER.transform(text), padding_value=1)
+        return self.tokenizer(text, padding=True, truncation=True, returns_tensors="pt")
 
     def forward(self, x):
         # May somehow swap dimensions before IDK
-        return self.roberta(x).avg(axis=1)
+        outputs = self.roberta(
+            inputs_ids=x["input_ids"], attention_mask=x["attention_mask"]
+        )
+        return outputs.avg(axis=1)
 
 
 class StyleEncoder(nn.Module):
@@ -44,12 +46,12 @@ class LabelEncoder(nn.Module):
         self.projection = nn.Linear(dims, self.dimensions)
         self.dropout_prob = dropout_prob
 
-    def text_transform(self, text):
-        return self.content_enc.transform(text)
+    def text_transform(self, text, device):
+        encoded = self.content_enc.transform(text)
+        return {k: v.to(device) for k, v in encoded.items()}
 
     def initialize_weights(self):
-        assert self.projection.weights is torch.Tensor
-        nn.init.normal_(self.projection.weights, std=0.02)
+        nn.init.normal_(self.projection.weight, std=0.02)
 
     def token_drop(self, labels, force_drop_ids=None):
         """

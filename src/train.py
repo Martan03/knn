@@ -74,7 +74,7 @@ class Trainer:
             t = torch.randint(
                 0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
             )
-            y = self.label_enc.text_transform(d["transcript"])
+            y = self.label_enc.text_transform(d["transcript"], self.device)
             model_kwargs = {
                 "content": y,
                 "style": d["style"],
