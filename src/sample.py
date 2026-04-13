@@ -8,8 +8,6 @@ from src.models.dit import DiT_S_8
 
 
 def sample(args):
-    test = wrapping_prep_img(args.style)
-    return
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint = torch.load(args.model, map_location=device)
 
