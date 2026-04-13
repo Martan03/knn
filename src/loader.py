@@ -86,8 +86,8 @@ def wrapping_prep_img(file, wrap_size=256, res_h=64):
 
     img = np.transpose(res, (2, 0, 1))
 
-    samples = torch.Tensor(img)
-    save_image(samples, "test.png", nrow=4, normalize=True, value_range=(-1, 1))
+    # samples = torch.Tensor(img)
+    # save_image(samples, "test.png", nrow=4, normalize=True, value_range=(-1, 1))
 
     return torch.tensor(img, dtype=torch.float)
 
