@@ -79,7 +79,7 @@ class Trainer:
         for epoch in range(self.epochs):
             loss = self.train_epoch()
             self.save(self.result_dir / "last.pt")
-            score = self.eval()
+            score = self.eval(epoch)
             if score <= best_score:
                 best_score = score
                 self.save(self.result_dir / "best.pt")
@@ -120,13 +120,13 @@ class Trainer:
         return loss_sum / len(self.loader) if len(self.loader) != 0 else float("inf")
 
     @torch.no_grad()
-    def eval(self) -> float:
+    def eval(self, epoch) -> float:
         self.ema.y_embedder.eval()
 
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
-            data["transcript"], data["style"].to(self.device), str(self.result_dir / "latest.png")
+            data["transcript"], data["style"].to(self.device), str(self.result_dir / f"epoch{epoch}.png")
         )
         
         self.ema.y_embedder.train()

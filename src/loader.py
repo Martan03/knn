@@ -15,7 +15,7 @@ class IAMDataset(Dataset):
         """
         self.writer_dict = parse_labels(labels)
         self.data = [
-            d for list in itertools.islice(self.writer_dict.values(), 10) for d in list
+            d for list in self.writer_dict.values() for d in list
         ]
         self.data_folder = data
         self.generator = np.random.default_rng()
