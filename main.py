@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import argparse
+from pathlib import Path
 
 from src.train import Trainer
 
@@ -18,8 +19,8 @@ def main():
     train_parser.add_argument(
         "-d",
         "--dataset",
-        default="dataset",
-        type=str,
+        default=Path("dataset"),
+        type=Path,
         help="Path to the dataset directory",
     )
     train_parser.add_argument(

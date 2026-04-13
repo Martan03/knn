@@ -27,7 +27,6 @@ class Trainer:
         self.diffusion = create_diffusion(timestep_respacing="")
         vae_type = "ema"
         vae = AutoencoderKL.from_pretrained(f"stabilityai/sd-vae-ft-{vae_type}")
-        assert vae is torch.nn.Module
         self.vae = vae.to(self.device)
 
         self.label_enc = LabelEncoder(0.1).to(self.device)
@@ -90,7 +89,7 @@ class Trainer:
 
             loss_sum += loss.item()
 
-        return loss_sum / len(self.loader)
+        return loss_sum / len(self.loader) if len(self.loader) != 0 else float("inf")
 
     def save(self, file):
         checkpoint = {

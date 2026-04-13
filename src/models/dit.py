@@ -251,22 +251,25 @@ class DiT(nn.Module):
         self.y_embedder.initialize_weights()
 
         # Initialize timestep embedding MLP:
-        assert self.t_embedder.mlp[0].weight is torch.Tensor
-        assert self.t_embedder.mlp[2].weight is torch.Tensor
+        assert isinstance(self.t_embedder.mlp[0].weight, torch.Tensor)
+        assert isinstance(self.t_embedder.mlp[2].weight, torch.Tensor)
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
 
         # Zero-out adaLN modulation layers in DiT blocks:
         for block in self.blocks:
-            assert block is DiTBlock
-            nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
-            nn.init.constant_(block.adaLN_modulation[-1].bias, 0)
+            assert isinstance(block, DiTBlock)
+            last_layer = block.adaLN_modulation[-1]
+            assert isinstance(last_layer, nn.Linear)
+            nn.init.constant_(last_layer.weight, 0)
+            nn.init.constant_(last_layer.bias, 0)
 
         # Zero-out output layers:
-        assert self.final_layer.adaLN_modulation[-1].weight is torch.Tensor
-        assert self.final_layer.adaLN_modulation[-1].bias is torch.Tensor
-        nn.init.constant_(self.final_layer.adaLN_modulation[-1].weight, 0)
-        nn.init.constant_(self.final_layer.adaLN_modulation[-1].bias, 0)
+        last_layer = self.final_layer.adaLN_modulation[-1]
+        assert isinstance(last_layer.weight, torch.Tensor)
+        assert isinstance(last_layer.bias, torch.Tensor)
+        nn.init.constant_(last_layer.weight, 0)
+        nn.init.constant_(last_layer.bias, 0)
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
 
