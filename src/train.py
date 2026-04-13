@@ -6,13 +6,12 @@ from diffusers.models.autoencoders.autoencoder_kl import AutoencoderKL
 from rich.progress import track
 from torch.utils.data import DataLoader
 
-from diffusion import create_diffusion
+from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd
 from src.models.dit import DiT_S_8
 from src.models.encoders import LabelEncoder
 
 
-# TODO: args should contain `epochs`, `batch_size` and `dataset`
 class Trainer:
     def __init__(self, args):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -48,16 +47,18 @@ class Trainer:
         dataset = IAMDataset(label_path, data_path)
         self.loader = DataLoader(
             dataset,
-            batch_size=args.batch_size,
+            batch_size=args.batch,
             collate_fn=lambda x: collate_fn_padd(x, self.device),
         )
 
-    def train(self, args):
+        self.epochs = args.epochs
+
+    def train(self):
         update_ema(self.ema, self.model, decay=0)
         self.model.train()
         self.label_enc.train()
 
-        for epoch in range(args.epochs):
+        for epoch in range(self.epochs):
             loss = self.train_epoch()
             print(f"epoch {epoch} loss {loss}")
 
@@ -90,6 +91,13 @@ class Trainer:
             loss_sum += loss.item()
 
         return loss_sum / len(self.loader)
+
+    def save(self, file):
+        checkpoint = {
+            "model": self.model.state_dict(),
+            "ema": self.ema.state_dict(),
+        }
+        torch.save(checkpoint, file)
 
 
 @torch.no_grad()
