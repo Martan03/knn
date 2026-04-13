@@ -1,4 +1,3 @@
-import os
 from copy import deepcopy
 from pathlib import Path
 from typing import OrderedDict
@@ -13,7 +12,6 @@ from torchvision.utils import save_image
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd
 from src.models.dit import DiT_S_8
-from src.models.encoders import LabelEncoder
 
 
 class Trainer:
@@ -40,10 +38,7 @@ class Trainer:
         # self.label_enc.initialize_weights()
 
         self.opt = torch.optim.AdamW(
-            [
-                {"params": self.model.parameters()},
-                # {"params": self.label_enc.parameters()},
-            ],
+            self.model.parameters(),
             lr=1e-4,
             weight_decay=0,
         )
@@ -71,7 +66,6 @@ class Trainer:
     def train(self):
         update_ema(self.ema, self.model, decay=0)
         self.model.train()
-        # self.label_enc.train()
 
         best_score = float("inf")
         best_loss = float("inf")
