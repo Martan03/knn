@@ -12,7 +12,7 @@ obrázek tohoto nového textu ve stejném rukopisu jako je ukázka.
 == Způsob řešení
 
 #figure(
-    image("model.pdf"),
+    image("assets/model.pdf"),
     caption: [Přehled jak námi využíváný model vypadá.]
 )
 
@@ -96,8 +96,22 @@ anglických slov o více než 300 různých rukopisech.
 
 Máme implementovanou iniciální strukturu modelu, kterou jsme se pokusili
 natrénovat. Ještě jsme neimplementovali žádný ze způsobů hodnocení učení, ale
-je zjevné, že model se nebyl schopen úlohu naučit. Důvodem může být chyba v
-implementaci, nevhodné enkodéry nebo nedostatečný čas učení.
+je zjevné, že model se nebyl schopen úlohu naučit. Důvodem je pravděpodobně
+nedostatečný čas učení. Je také ale možné, že se model učí pomalu, protože něco
+děláme špatně.
+
+#image("assets/c04-110-00-00.png")
+
+Model jsme testovali na vstupu, kde jako styl je obrázek s textem `Become` a
+jako požadovaný text jsme zadali text `hello`. První verze modelu po osmi
+epochách vytvořila následující výstup:
+
+#image("assets/before.png")
+
+Druhá verze modelu, kde jsme upravili způsob reprezentace null label a přestali
+invertovat obrázek měla po šesti epochách následující výstup:
+
+#image("assets/now.png")
 
 == GIT repozitář
 
