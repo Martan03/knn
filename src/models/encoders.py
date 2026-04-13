@@ -11,7 +11,7 @@ class ContentEncoder(nn.Module):
         super().__init__()
         self.tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
         self.roberta = RobertaModel.from_pretrained("roberta-base")
-        self.roberta.requires_grad_(False)
+        # self.roberta.requires_grad_(False)
         self.roberta.eval()
         self.dimensions = 768
 
