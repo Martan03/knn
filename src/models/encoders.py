@@ -65,9 +65,9 @@ class LabelEncoder(nn.Module):
             drop_ids = torch.Tensor(force_drop_ids == 1)
 
         content = {
-            k: torch.where(drop_ids.unsqueeze(1), torch.zeros_like(v), v) for k, v in content.items()
+            k: torch.where(drop_ids.unsqueeze(1), torch.zeros_like(v, device=v.device), v) for k, v in content.items()
         }
-        none_style = torch.zeros_like(style)
+        none_style = torch.zeros_like(style, device=style.device)
         style = torch.where(drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style)
         return style, content
 

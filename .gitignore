@@ -1,4 +1,4 @@
 /dataset
 /*.pdf
 __pycache__
-last.pt
+/trained

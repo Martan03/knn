@@ -126,9 +126,10 @@ class Trainer:
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
-            data["transcript"], data["style"], str(self.result_dir / "latest.png")
+            data["transcript"], data["style"].to(self.device), str(self.result_dir / "latest.png")
         )
-
+        
+        self.ema.y_embedder.train()
         return 0
 
         loss_sum = 0
