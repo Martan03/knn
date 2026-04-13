@@ -14,9 +14,7 @@ class IAMDataset(Dataset):
         e.g. labels="dataset/IAM64_train.txt", data="dataset/IAM64-new/test"
         """
         self.writer_dict = parse_labels(labels)
-        self.data = [
-            d for list in self.writer_dict.values() for d in list
-        ]
+        self.data = [d for list in self.writer_dict.values() for d in list]
         self.data_folder = data
         self.generator = np.random.default_rng()
 
@@ -61,8 +59,8 @@ def prep_img_base(file, res_h=64):
         image = image.resize((w, res_h))
 
     image = np.array(image).astype(np.float32)
-    image /= 255.0
-    return 1 - image
+    image = (image / 127.5) - 1.0
+    return -image
 
 
 def prep_img(file, res_h=64):

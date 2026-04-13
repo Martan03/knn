@@ -11,6 +11,8 @@ class ContentEncoder(nn.Module):
         super().__init__()
         self.tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
         self.roberta = RobertaModel.from_pretrained("roberta-base")
+        self.roberta.requires_grad_(False)
+        self.roberta.eval()
         self.dimensions = 768
 
     def transform(self, text):
@@ -65,19 +67,24 @@ class LabelEncoder(nn.Module):
             drop_ids = torch.Tensor(force_drop_ids == 1)
 
         content = {
-            k: torch.where(drop_ids.unsqueeze(1), torch.zeros_like(v, device=v.device), v) for k, v in content.items()
+            k: torch.where(
+                drop_ids.unsqueeze(1), torch.zeros_like(v, device=v.device), v
+            )
+            for k, v in content.items()
         }
         none_style = torch.zeros_like(style, device=style.device)
-        style = torch.where(drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style)
+        style = torch.where(
+            drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style
+        )
         return style, content
 
     def forward(self, style, content, train, force_drop_ids=None):
         use_dropout = self.dropout_prob > 0
         if (train and use_dropout) or (force_drop_ids is not None):
             style, content = self.token_drop(style, content, force_drop_ids)
-            
+
         style = self.style_enc(style)
         content = self.content_enc(content)
-        
+
         labels = torch.cat([style, content], dim=1)
         return self.projection(labels)
