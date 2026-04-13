@@ -73,25 +73,24 @@ def wrapping_prep_img(file, wrap_size=256, res_h=64):
 
     res = np.zeros((wrap_size, wrap_size, img.shape[2]))
 
-    splits = range(wrap_size, wrap_size // res_h, wrap_size)
-
-    for i, t in enumerate(np.split(img, splits)):
-        w, h, _ = t.shape
+    splits = range(wrap_size, wrap_size // res_h * wrap_size, wrap_size)
+    for i, t in enumerate(np.split(img, splits, axis=1)):
+        h, w, _ = t.shape
         if w == 0:
             break
-        res[0:w, i : i + h, :] = t
+        res[i : i + h, 0:w, :] = t
 
-    img = np.transpose(img, (2, 0, 1))
+    img = np.transpose(res, (2, 0, 1))
 
     return torch.tensor(img, dtype=torch.float)
 
 
 def decode_img(img: torch.Tensor, height=64) -> torch.Tensor:
     image = np.transpose(img, (1, 2, 0)).astype(np.float32)
-    w, h, c = image.shape
-    res = np.zeros((h // height * w, height, c))
-    for i, t in enumerate(np.split(img, h // height, axis=1)):
-        res[i : i + w, :, :] = t
+    h, w, c = image.shape
+    res = np.zeros((height, h // height * w, c))
+    for i, t in enumerate(np.split(img, h // height)):
+        res[:, i : i + w, :] = t
 
     return torch.tensor(res, dtype=torch.float)
 
