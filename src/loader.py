@@ -28,8 +28,46 @@ class IAMDataset(Dataset):
 
         return {
             "style": prep_img(self.data_folder / style),
+            "style_label": int(str(writer)),
             "expected": wrapping_prep_img(self.data_folder / expected),
             "transcript": txt,
+        }
+        
+class IAMStyleDataset(Dataset):
+    def __init__(self, labels: Path, data: Path):
+        """
+        e.g. labels="dataset/IAM64_train.txt", data="dataset/IAM64-new/test"
+        """
+        self.writer_dict = parse_labels(labels)
+        self.data = [d for list in self.writer_dict.values() for d in list]
+        self.data_folder = data
+        self.generator = np.random.default_rng()
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, id):
+        writer, expected, txt = self.data[id]
+
+        return {
+            "style": prep_img(self.data_folder / expected),
+            "style_label": int(str(writer)),
+            "expected": torch.Tensor(), # this is ignored
+            "transcript": txt,
+        }
+    
+    def get_for_test(self, id):
+        writer, expected, txt = self.data[id]
+        same = self.generator.choice(self.writer_dict[writer])[1]
+        diff = self.generator.choice(self.data)
+        while diff[0] == writer:
+            diff = self.generator.choice(self.data)
+
+        return {
+            "style": prep_img(self.data_folder / expected),
+            "style_label": int(str(writer)),
+            "same": prep_img(self.data_folder / same),
+            "different": prep_img(self.data_folder / diff[1])
         }
 
 
@@ -104,6 +142,7 @@ def decode_img(img: torch.Tensor, height=64) -> torch.Tensor:
 
 def collate_fn_padd(batch, device):
     style = [item["style"] for item in batch]
+    style_label = [item["style_label"] for item in batch]
     expected = [item["expected"] for item in batch]
     transcript = [item["transcript"] for item in batch]
 
@@ -125,6 +164,7 @@ def collate_fn_padd(batch, device):
 
     return {
         "style": padded_imgs.to(device),
+        "style_label": torch.Tensor(style_label).to(device),
         "expected": targets.to(device),
         "transcript": transcript,
     }

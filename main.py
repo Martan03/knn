@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.sample import sample
 from src.train import Trainer
+from src.train_style import StyleTrainer
 
 
 def main():
@@ -58,6 +59,28 @@ def main():
         type=Path,
         help="Path to the output image",
     )
+    
+    train_style_parser = subparsers.add_parser("train-style", help="Train the style model")
+    train_style_parser.add_argument(
+        "-d",
+        "--dataset",
+        default=Path("dataset"),
+        type=Path,
+        help="Path to the dataset directory",
+    )
+    train_style_parser.add_argument(
+        "-e", "--epochs", default=10, type=int, help="Number of training epochs"
+    )
+    train_style_parser.add_argument(
+        "-b", "--batch", default=32, type=int, help="Batch size used for training"
+    )
+    train_style_parser.add_argument(
+        "-o",
+        "--output",
+        default=Path("trained-style"),
+        type=Path,
+        help="directory with resulting trained models",
+    )
 
     args = parser.parse_args()
     if args.command == "train":
@@ -66,6 +89,10 @@ def main():
         trainer.save("last.pt")
     elif args.command == "run":
         sample(args)
+    elif args.command == "train-style":
+        trainer = StyleTrainer(args)
+        trainer.train()
+        trainer.save("last.pt")
 
 
 if __name__ == "__main__":
