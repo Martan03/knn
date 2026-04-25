@@ -2,8 +2,9 @@ from pathlib import Path
 from rich.progress import track
 import torch
 from torch.utils.data import DataLoader
+import numpy as np
 
-from src.loader import IAMDataset, IAMStyleDataset, collate_fn_padd
+from src.loader import IAMStyleDataset, collate_fn_padd
 from src.models.style import StyleNet
 from src.models.sup_con_loss import SupConLoss
 
@@ -37,10 +38,14 @@ class StyleTrainer:
     def train(self):
         diff, same = self.test()
         print(f"avg diff: {diff}, avg same: {same}")
+        best = diff - same
         for epoch in range(self.epochs):
             loss = self.train_pass()
             print(f"epoch {epoch} loss: {loss}")
             diff, same = self.test()
+            if not np.isnan(loss) and diff - same > best:
+                best = diff - same
+                self.save(self.result_dir / "best.pt")
             print(f"avg diff: {diff}, avg same: {same}")
             self.save(self.result_dir / "last.pt")
     
