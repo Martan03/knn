@@ -19,4 +19,4 @@ class StyleNet(nn.Module):
         x = x.view(-1, self.asize * self.asize * 16)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        return F.sigmoid(self.fc3(x))

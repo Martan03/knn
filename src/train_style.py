@@ -58,7 +58,7 @@ class StyleTrainer:
             x = self.model(data["style"])
             loss = self.loss(x.unsqueeze(1), data["style_label"])
             loss.backward()
-            # Clip norm?
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5)
             self.opt.step()
             loss_sum += loss.item()
         return loss_sum / len(self.loader)
