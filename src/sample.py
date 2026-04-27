@@ -84,7 +84,7 @@ class Sampler:
         samples = self.vae.decode(samples / 0.18215).sample
         return samples
 
-    def eval(self, img: Path, text: str) -> Tuple[float, float, float]:
+    def eval(self) -> Tuple[float, float, float]:
         total_diff = 0
         total_cer = 0
 
@@ -101,7 +101,7 @@ class Sampler:
 
                 res_tensor = decode_img(res_img)
                 res_style = self.style_model.forward(res_tensor.unsqueeze(0))
-                ref_img = prep_img(img).to(self.device)
+                ref_img = style.to(self.device)
                 ref_style = self.style_model.forward(ref_img.unsqueeze(0))
 
                 total_diff += torch.sum(
@@ -110,7 +110,7 @@ class Sampler:
 
                 result = tensor_to_img(res_tensor)
                 res = pytesseract.image_to_string(result, config="--psm 7").strip()
-                cer = get_cer([res], [text])
+                cer = get_cer([res], [txt])
                 total_cer += cer
 
             self.fid.update(d["expected"], real=True)

@@ -126,7 +126,8 @@ def main():
         save_image(res, args.output, nrow=4, normalize=True, value_range=(-1, 1))
     elif args.command == "test":
         sampler = Sampler(args)
-        sampler.eval(args.style, args.text)
+        diff, cer, fid = sampler.eval()
+        print(f"Style diff: {diff}, OCR CER: {cer}, FID: {fid}")
     elif args.command == "train-style":
         trainer = StyleTrainer(args)
         trainer.train()
