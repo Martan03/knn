@@ -84,16 +84,6 @@ def main():
         "-b", "--batch", default=32, type=int, help="Batch size used for training"
     )
     test_parser.add_argument(
-        "-s",
-        "--style",
-        type=Path,
-        help="Path to the style reference image",
-        required=True,
-    )
-    test_parser.add_argument(
-        "-t", "--text", type=str, help="The text to generate", required=True
-    )
-    test_parser.add_argument(
         "-o",
         "--output",
         default=Path("output.png"),

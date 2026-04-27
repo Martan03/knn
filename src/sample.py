@@ -1,3 +1,4 @@
+import itertools
 from pathlib import Path
 from typing import Tuple
 
@@ -11,7 +12,6 @@ from rich.progress import track
 from torch.utils.data import DataLoader
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchvision.utils import save_image
-import itertools
 
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd, decode_img, prep_img
@@ -25,17 +25,19 @@ class Sampler:
 
         self.latent_size = 256 // 8
 
-        checkpoint = torch.load(args.model, map_location=self.device)
-        self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
-        self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(self.device)
-        self.ema.load_state_dict(checkpoint["ema"])
-        self.ema.eval()
+        # checkpoint = torch.load(args.model, map_location=self.device)
+        # self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
+        # self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
+        #     self.device
+        # )
+        # self.ema.load_state_dict(checkpoint["ema"])
+        # self.ema.eval()
 
-        self.diffusion = create_diffusion("250")
+        # self.diffusion = create_diffusion("250")
 
-        style_checkpoint = torch.load(args.style_model, map_location=self.device)
-        self.style_model = StyleNet(8).to(self.device)
-        self.style_model.load_state_dict(style_checkpoint["model"])
+        # style_checkpoint = torch.load(args.style_model, map_location=self.device)
+        # self.style_model = StyleNet(8).to(self.device)
+        # self.style_model.load_state_dict(style_checkpoint["model"])
 
         test_label_path = args.dataset / "IAM64_test.txt"
         test_data_path = args.dataset / "IAM64-new/test"
@@ -44,9 +46,12 @@ class Sampler:
             self.test_dataset,
             batch_size=args.batch,
             collate_fn=lambda x: collate_fn_padd(x, self.device),
-            shuffle=True
+            shuffle=True,
         )
-        self.fid = FrechetInceptionDistance()
+        # self.fid = FrechetInceptionDistance().to(self.device)
+
+    def sample(self, img: Path, text: str) -> torch.Tensor:
+        style = prep_img(img).to(self.device)
 
     def sample(self, img: torch.Tensor, text: str) -> torch.Tensor:
         style = img.to(self.device)

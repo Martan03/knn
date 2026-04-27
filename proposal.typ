@@ -12,8 +12,8 @@ obrázek tohoto nového textu ve stejném rukopisu jako je ukázka.
 == Způsob řešení
 
 #figure(
-    image("assets/model.pdf"),
-    caption: [Přehled jak námi využíváný model vypadá.]
+  image("assets/model.pdf"),
+  caption: [Přehled jak námi využíváný model vypadá.],
 )
 
 Vstup modelu bude obsahovat dvě části - textový obsah, což je text který
@@ -56,11 +56,45 @@ daný text na několika řádcích. Každý řádek má výšku 64 pixelů.
 #pagebreak()
 == Hodnocení učení
 
-Pro evaluaci učení z~výsledného obrázku přečteme text pomocí OCR a~vyhodnotíme
-Character Error Rate. Dále také extrahujeme styl písma z~výstupního obrázku,
-který následně porovnáme s~referenčním textem, což oveří podobnost stylu
-písma. Pro zhodnocení podobnosti výsledných obrázků z obrázky z datasetu
-využijeme metodu Fréchet Inception Distance (FID loss).
+Pro evaluaci učení jsme využili tři různé metriky: porovnání stylu písma,
+Character Error Rate po transkripci textu a FID.
+
+Porovnání stylu písma měří schopnost modelu napodobit rukopis dle referenčního
+obrázku. Porovnáváme tedy styl písma z~referenčního obrázku se stylem písma na
+vygenerovaném obrázku, kdy metriku počítáme jako sumu absolutních hodnot
+rozdílů jednotlivých výstupů neuronové sítě pro extrakci stylu.
+
+OCR CER značí Character Error Rate z~transkripce textu z~generovaného obrázku
+s~očekávaným textem. Tato evaluace říká, jak čitelný a přesný text je modelem
+generován. Character Error Rate konkrétně počítá, kolik změn je třeba udělat,
+aby texty byly stejné, kdy změna je vložení, smazání nebo substituce znaku.
+
+Pomocí FID, neboli Fréchet Inception Distance, následně spočítáme nad celým
+trénovacím datasetem, abychom zjistili podobnost generovaných obrázků
+s~testovacím datasetem.
+
+=== Výsledky měření
+
+#table(
+  columns: (auto, auto, auto),
+  table.header([*Porovnání stylu*], [*OCR CER*], [*FID*]),
+  [8.615204194188118], [1.170617559523809], [359.0281066894531],
+)
+
+Výsledná hodnota porovnání stylu nám vychází okolo `8.615`, což je dokonce více
+než průměrná hodnota pro porovnávní stylu písma různých pisatelů, která je
+zhruba `5.28`. Očekávaná  hodnota pro porovnání dvou stejných stylů je
+v~průměru `3.14`.
+
+Character Error Rate okolo `1.171` je také velmi velká hodnota. Hodnota větší
+jak `1` nastane, jelikož OCR predikuje text, který je delší než očekávaný text.
+V ideálním případě by se hodnota CER měla pohybovat okolo `0.05` a~méně.
+
+Jako dobré hodnoty pro FID jsou brány hodnoty okolo 50 a~menší, což naše
+naměřená hodnota výrazně přesahuje.
+
+Vyhodnocené hodnoty však vzhledem k~aktuálnímu stavu našeho modelu dávají zcela
+smysl, jelikož model generuje obrázky velmi podobné šumu.
 
 == Experimenty
 
@@ -82,12 +116,8 @@ nás tyto projekty inspirací jak samotný model navrhnout.
 
 == Dataset
 
-Našli jsme dva vhodné datasety. Jeden z projektu One-DM dostupný na #link(
-    "https://drive.google.com/drive/folders/108TB-z2ytAZSIEzND94dyufybjpqVyn6"
-)[google drive]. Tento obsahuje zejména jednotlivá slova. Druhý dataset je z
-projektu DiffBrush, dostupný na #link(
-    "https://github.com/dailenson/DiffBrush/tree/main/test_data"
-)[GitHub]. Tento již obsahuje delší věty.
+Našli jsme dva vhodné datasety. Jeden z projektu One-DM dostupný na #link("https://drive.google.com/drive/folders/108TB-z2ytAZSIEzND94dyufybjpqVyn6")[google drive]. Tento obsahuje zejména jednotlivá slova. Druhý dataset je z
+projektu DiffBrush, dostupný na #link("https://github.com/dailenson/DiffBrush/tree/main/test_data")[GitHub]. Tento již obsahuje delší věty.
 
 Aktuálně pro trénování využíváme dataset z One-DM obsahující přes 60000
 anglických slov o více než 300 různých rukopisech.

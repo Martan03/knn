@@ -120,9 +120,11 @@ class Trainer:
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
-            data["transcript"], data["style"].to(self.device), str(self.result_dir / f"epoch{epoch}.png")
+            data["transcript"],
+            data["style"].to(self.device),
+            str(self.result_dir / f"epoch{epoch}.png"),
         )
-        
+
         self.ema.y_embedder.train()
         return 0
 
@@ -169,9 +171,10 @@ class Trainer:
         )
         z = torch.cat([z, z], 0)
         txt = {
-            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device) for k, v in txt.items()
+            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device)
+            for k, v in txt.items()
         }
-        #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
+        # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
         style = style.unsqueeze(0)
         style = torch.cat([style, torch.zeros_like(style)], 0)
         model_kwargs = {
@@ -179,7 +182,7 @@ class Trainer:
             "style": style,
             "cfg_scale": 4.0,
         }
-    
+
         samples = self.diffusion.p_sample_loop(
             self.ema.forward_with_cfg,
             z.shape,
