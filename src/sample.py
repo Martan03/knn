@@ -25,19 +25,19 @@ class Sampler:
 
         self.latent_size = 256 // 8
 
-        # checkpoint = torch.load(args.model, map_location=self.device)
-        # self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
-        # self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
-        #     self.device
-        # )
-        # self.ema.load_state_dict(checkpoint["ema"])
-        # self.ema.eval()
+        checkpoint = torch.load(args.model, map_location=self.device)
+        self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
+        self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
+            self.device
+        )
+        self.ema.load_state_dict(checkpoint["ema"])
+        self.ema.eval()
 
-        # self.diffusion = create_diffusion("250")
+        self.diffusion = create_diffusion("250")
 
-        # style_checkpoint = torch.load(args.style_model, map_location=self.device)
-        # self.style_model = StyleNet(8).to(self.device)
-        # self.style_model.load_state_dict(style_checkpoint["model"])
+        style_checkpoint = torch.load(args.style_model, map_location=self.device)
+        self.style_model = StyleNet(8).to(self.device)
+        self.style_model.load_state_dict(style_checkpoint["model"])
 
         test_label_path = args.dataset / "IAM64_test.txt"
         test_data_path = args.dataset / "IAM64-new/test"
@@ -48,10 +48,7 @@ class Sampler:
             collate_fn=lambda x: collate_fn_padd(x, self.device),
             shuffle=True,
         )
-        # self.fid = FrechetInceptionDistance().to(self.device)
-
-    def sample(self, img: Path, text: str) -> torch.Tensor:
-        style = prep_img(img).to(self.device)
+        self.fid = FrechetInceptionDistance().to(self.device)
 
     def sample(self, img: torch.Tensor, text: str) -> torch.Tensor:
         style = img.to(self.device)
