@@ -93,18 +93,15 @@ class Sampler:
         self.ema.eval()
         self.style_model.eval()
         self.fid.reset()
-        for d in track(list(itertools.islice(self.test_loader, 100)), description="evaluating"):
+        for d in track(self.test_loader, description="evaluating"):
             gen = []
             for style in d["style"]:
                 txt = self.test_dataset.rand_text()
                 res_img = self.sample(style, txt)
-                print(res_img.shape)
 
                 gen_res = torch.clamp((res_img + 1.0) / 2.0, 0.0, 1.0) * 255
                 gen_res = gen_res.squeeze(0).type(torch.uint8)
 
-                print(gen_res.shape)
-                print()
                 gen.append(gen_res)
 
                 res_tensor = decode_img(res_img.squeeze(0)).to(self.device)
