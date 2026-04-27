@@ -52,12 +52,15 @@ class IAMStyleDataset(Dataset):
 
     def __getitem__(self, id):
         writer, expected, txt = self.data[id]
+        _, same, same_txt = self.generator.choice(self.writer_dict[writer])
 
         return {
             "style": prep_img(self.data_folder / expected),
+            "same": prep_img(self.data_folder / same),
             "style_label": int(str(writer)),
             "expected": torch.Tensor(),  # this is ignored
             "transcript": txt,
+            "same_transcript": same_txt,
         }
 
     def get_for_test(self, id):
@@ -149,6 +152,38 @@ def collate_fn_padd(batch, device):
     style_label = [item["style_label"] for item in batch]
     expected = [item["expected"] for item in batch]
     transcript = [item["transcript"] for item in batch]
+
+    widths = [img.shape[2] for img in style]
+    max_width = max(widths)
+
+    batch_size = len(style)
+    channels = style[0].shape[0]
+    height = style[0].shape[1]
+
+    padded_imgs = torch.ones(batch_size, channels, height, max_width)
+
+    for i, img in enumerate(style):
+        w = img.shape[2]
+        padded_imgs[i, :, :, :w] = img
+    padded_imgs = padded_imgs
+
+    targets = torch.stack(expected)
+
+    return {
+        "style": padded_imgs.to(device),
+        "style_label": torch.Tensor(style_label).to(device),
+        "expected": targets.to(device),
+        "transcript": transcript,
+    }
+    
+def collate_fn_padd_style(batch, device):
+    style = [item["style"] for item in batch]
+    style.extend(item["same"] for item in batch)
+    style_label = [item["style_label"] for item in batch]
+    # style_label = style_label * 2
+    expected = [item["expected"] for item in batch]
+    transcript = [item["transcript"] for item in batch]
+    transcript.extend(item["same_transcript"] for item in batch)
 
     widths = [img.shape[2] for img in style]
     max_width = max(widths)

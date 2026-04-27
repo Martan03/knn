@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 
-from src.loader import IAMStyleDataset, collate_fn_padd
+from src.loader import IAMStyleDataset, collate_fn_padd, collate_fn_padd_style
 from src.models.style import StyleNet
 from src.models.sup_con_loss import SupConLoss
 
@@ -24,7 +24,7 @@ class StyleTrainer:
         self.loader = DataLoader(
             dataset,
             batch_size=args.batch,
-            collate_fn=lambda x: collate_fn_padd(x, self.device),
+            collate_fn=lambda x: collate_fn_padd_style(x, self.device),
             shuffle=True,
         )
         
@@ -46,7 +46,7 @@ class StyleTrainer:
             if not np.isnan(loss) and diff - same > best:
                 best = diff - same
                 self.save(self.result_dir / "best.pt")
-            print(f"avg diff: {diff}, avg same: {same}")
+            print(f"avg diff: {diff}, avg same: {same}, total: {diff - same}")
             self.save(self.result_dir / "last.pt")
     
     def train_pass(self):
@@ -56,7 +56,8 @@ class StyleTrainer:
         for data in track(self.loader, description="training"):
             self.opt.zero_grad()
             x = self.model(data["style"])
-            loss = self.loss(x.unsqueeze(1), data["style_label"])
+            x1, x2 = torch.split(x, x.shape[0] // 2)
+            loss = self.loss(torch.stack([x1, x2], dim=1), data["style_label"])
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5)
             self.opt.step()
@@ -82,7 +83,7 @@ class StyleTrainer:
                 style = self.model(data["style"].to(self.device))
                 same = self.model(data["same"].to(self.device))
                 different = self.model(data["different"].to(self.device))
-                same_sum += torch.sum(torch.abs(torch.sub(style, same))).item()
-                diff_sum += torch.sum(torch.abs(torch.sub(style, different))).item()
+                same_sum += torch.sqrt(torch.sum(torch.square(torch.sub(style, same)))).item()
+                diff_sum += torch.sqrt(torch.sum(torch.square(torch.sub(style, different)))).item()
             return diff_sum / cnt, same_sum / cnt
         
