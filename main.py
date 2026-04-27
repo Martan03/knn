@@ -3,7 +3,10 @@
 import argparse
 from pathlib import Path
 
-from src.sample import sample
+from torchvision.utils import save_image
+
+from src.loader import decode_img
+from src.sample import Sampler, sample
 from src.train import Trainer
 from src.train_style import StyleTrainer
 
@@ -59,8 +62,38 @@ def main():
         type=Path,
         help="Path to the output image",
     )
-    
-    train_style_parser = subparsers.add_parser("train-style", help="Train the style model")
+
+    test_parser = subparsers.add_parser("test", help="Tests the model")
+    test_parser.add_argument(
+        "-m", "--model", type=Path, help="Path to the trained .pt model", required=True
+    )
+    test_parser.add_argument(
+        "--style-model",
+        type=Path,
+        help="Path to the trained .pt model",
+        required=False,
+    )
+    test_parser.add_argument(
+        "-s",
+        "--style",
+        type=Path,
+        help="Path to the style reference image",
+        required=True,
+    )
+    test_parser.add_argument(
+        "-t", "--text", type=str, help="The text to generate", required=True
+    )
+    test_parser.add_argument(
+        "-o",
+        "--output",
+        default=Path("output.png"),
+        type=Path,
+        help="Path to the output image",
+    )
+
+    train_style_parser = subparsers.add_parser(
+        "train-style", help="Train the style model"
+    )
     train_style_parser.add_argument(
         "-d",
         "--dataset",
@@ -88,7 +121,12 @@ def main():
         trainer.train()
         trainer.save("last.pt")
     elif args.command == "run":
-        sample(args)
+        sampler = Sampler(args)
+        res = decode_img(sampler.sample(args.style, args.text))
+        save_image(res, args.output, nrow=4, normalize=True, value_range=(-1, 1))
+    elif args.command == "test":
+        sampler = Sampler(args)
+        sampler.eval(args.style, args.text)
     elif args.command == "train-style":
         trainer = StyleTrainer(args)
         trainer.train()

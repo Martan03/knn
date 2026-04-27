@@ -19,6 +19,9 @@ class IAMDataset(Dataset):
         self.data_folder = data
         self.generator = np.random.default_rng()
 
+    def rand_text(self) -> str:
+        return self.generator.choice(self.data)[2]
+
     def __len__(self):
         return len(self.data)
 
@@ -32,7 +35,8 @@ class IAMDataset(Dataset):
             "expected": wrapping_prep_img(self.data_folder / expected),
             "transcript": txt,
         }
-        
+
+
 class IAMStyleDataset(Dataset):
     def __init__(self, labels: Path, data: Path):
         """
@@ -52,10 +56,10 @@ class IAMStyleDataset(Dataset):
         return {
             "style": prep_img(self.data_folder / expected),
             "style_label": int(str(writer)),
-            "expected": torch.Tensor(), # this is ignored
+            "expected": torch.Tensor(),  # this is ignored
             "transcript": txt,
         }
-    
+
     def get_for_test(self, id):
         writer, expected, txt = self.data[id]
         same = self.generator.choice(self.writer_dict[writer])[1]
@@ -67,7 +71,7 @@ class IAMStyleDataset(Dataset):
             "style": prep_img(self.data_folder / expected),
             "style_label": int(str(writer)),
             "same": prep_img(self.data_folder / same),
-            "different": prep_img(self.data_folder / diff[1])
+            "different": prep_img(self.data_folder / diff[1]),
         }
 
 
