@@ -11,6 +11,7 @@ from rich.progress import track
 from torch.utils.data import DataLoader
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchvision.utils import save_image
+import itertools
 
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd, decode_img, prep_img
@@ -43,12 +44,12 @@ class Sampler:
             self.test_dataset,
             batch_size=args.batch,
             collate_fn=lambda x: collate_fn_padd(x, self.device),
+            shuffle=True
         )
-        self.fid = FrechetInceptionDistance().to(self.device)
+        self.fid = FrechetInceptionDistance()
 
-    def sample(self, img: Path, text: str) -> torch.Tensor:
-        style = prep_img(img).to(self.device)
-
+    def sample(self, img: torch.Tensor, text: str) -> torch.Tensor:
+        style = img.to(self.device)
         txt = self.ema.y_embedder.text_transform([text], self.device)
         z = torch.randn(
             1,
@@ -77,29 +78,36 @@ class Sampler:
             z,
             clip_denoised=False,
             model_kwargs=model_kwargs,
-            progress=True,
+            progress=False,
             device=self.device,
         )
         samples, _ = samples.chunk(2, dim=0)
         samples = self.vae.decode(samples / 0.18215).sample
         return samples
 
+    @torch.no_grad()
     def eval(self) -> Tuple[float, float, float]:
         total_diff = 0
         total_cer = 0
 
+        self.ema.eval()
+        self.style_model.eval()
         self.fid.reset()
-        for d in track(self.test_loader, description="evaluating"):
+        for d in track(list(itertools.islice(self.test_loader, 100)), description="evaluating"):
             gen = []
             for style in d["style"]:
                 txt = self.test_dataset.rand_text()
                 res_img = self.sample(style, txt)
+                print(res_img.shape)
 
-                gen_res = torch.clamp((res_img + 1.0) / 2.0, 0.0, 1.0)
-                gen_res = gen_res.permute(1, 2, 0)
+                gen_res = torch.clamp((res_img + 1.0) / 2.0, 0.0, 1.0) * 255
+                gen_res = gen_res.squeeze(0).type(torch.uint8)
+
+                print(gen_res.shape)
+                print()
                 gen.append(gen_res)
 
-                res_tensor = decode_img(res_img)
+                res_tensor = decode_img(res_img.squeeze(0)).to(self.device)
                 res_style = self.style_model.forward(res_tensor.unsqueeze(0))
                 ref_img = style.to(self.device)
                 ref_style = self.style_model.forward(ref_img.unsqueeze(0))
@@ -113,8 +121,9 @@ class Sampler:
                 cer = get_cer([res], [txt])
                 total_cer += cer
 
-            self.fid.update(d["expected"], real=True)
-            self.fid.update(torch.stack(gen), real=False)
+            exp = ((d["expected"] + 1.0) / 2.0 * 255).type(torch.uint8).cpu()
+            self.fid.update(exp, real=True)
+            self.fid.update(torch.stack(gen).cpu(), real=False)
 
         cnt = len(self.test_dataset)
         return total_diff / cnt, total_cer / cnt, self.fid.compute().item()
@@ -131,13 +140,16 @@ def tensor_to_img(src: torch.Tensor) -> Image.Image:
 def get_cer(preds: list[str], targets: list[str]) -> float:
     total_dist = 0
     total_len = 0
+    print(preds, " -> ", targets)
 
     for pred, target in zip(preds, targets):
         dist = Levenshtein.distance(pred, target)
         total_dist += dist
         total_len += len(target)
 
-    return total_dist / total_len if total_len > 0 else 0.0
+    res = total_dist / total_len if total_len > 0 else 0.0
+    print(res)
+    return res
 
 
 def sample(args):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from torchvision.utils import save_image
 
-from src.loader import decode_img
+from src.loader import decode_img, prep_img
 from src.sample import Sampler, sample
 from src.train import Trainer
 from src.train_style import StyleTrainer
@@ -65,6 +65,13 @@ def main():
 
     test_parser = subparsers.add_parser("test", help="Tests the model")
     test_parser.add_argument(
+        "-d",
+        "--dataset",
+        default=Path("dataset"),
+        type=Path,
+        help="Path to the dataset directory",
+    )
+    test_parser.add_argument(
         "-m", "--model", type=Path, help="Path to the trained .pt model", required=True
     )
     test_parser.add_argument(
@@ -72,6 +79,9 @@ def main():
         type=Path,
         help="Path to the trained .pt model",
         required=False,
+    )
+    test_parser.add_argument(
+        "-b", "--batch", default=32, type=int, help="Batch size used for training"
     )
     test_parser.add_argument(
         "-s",
@@ -122,7 +132,8 @@ def main():
         trainer.save("last.pt")
     elif args.command == "run":
         sampler = Sampler(args)
-        res = decode_img(sampler.sample(args.style, args.text))
+        style = prep_img(args.style)
+        res = decode_img(sampler.sample(style, args.text))
         save_image(res, args.output, nrow=4, normalize=True, value_range=(-1, 1))
     elif args.command == "test":
         sampler = Sampler(args)

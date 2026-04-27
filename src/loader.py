@@ -138,11 +138,13 @@ def wrapping_prep_img(file, wrap_size=256, res_h=64):
 
 
 def decode_img(img: torch.Tensor, height=64) -> torch.Tensor:
-    image = np.transpose(img, (1, 2, 0)).astype(np.float32)
+    image = np.array(img.detach().cpu())
+    image = np.transpose(image, (1, 2, 0)).astype(np.float32)
     h, w, c = image.shape
     res = np.zeros((height, h // height * w, c))
-    for i, t in enumerate(np.split(img, h // height)):
+    for i, t in enumerate(np.split(image, h // height)):
         res[:, i : i + w, :] = t
+    res = np.transpose(res, (2, 0, 1))
 
     return torch.tensor(res, dtype=torch.float)
 
@@ -175,7 +177,7 @@ def collate_fn_padd(batch, device):
         "expected": targets.to(device),
         "transcript": transcript,
     }
-    
+
 def collate_fn_padd_style(batch, device):
     style = [item["style"] for item in batch]
     style.extend(item["same"] for item in batch)
