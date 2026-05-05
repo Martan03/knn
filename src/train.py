@@ -95,10 +95,10 @@ class Trainer:
             t = torch.randint(
                 0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
             )
-            y = self.model.y_embedder.text_transform(d["transcript"], self.device)
+            y = d["transcript"]  # self.model.y_embedder.text_transform(d["transcript"], self.device)
             model_kwargs = {
                 "content": y,
-                "style": d["style"],
+                "style": d["style_label"],
             }
 
             loss_dict = self.diffusion.training_losses(self.model, x, t, model_kwargs)
@@ -120,7 +120,7 @@ class Trainer:
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
         self.sample(
-            data["transcript"], data["style"].to(self.device), str(self.result_dir / f"epoch{epoch}.png")
+            data["transcript"], data["style_label"], str(self.result_dir / f"epoch{epoch}.png")
         )
         
         self.ema.y_embedder.train()
@@ -158,8 +158,7 @@ class Trainer:
 
         return 0
 
-    def sample(self, text: str, style: torch.Tensor, file: str):
-        txt = self.ema.y_embedder.text_transform([text], self.device)
+    def sample(self, text: str, style: int, file: str):
         z = torch.randn(
             1,
             4,
@@ -168,15 +167,12 @@ class Trainer:
             device=self.device,
         )
         z = torch.cat([z, z], 0)
-        txt = {
-            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device) for k, v in txt.items()
-        }
+        txt = [text, ""]
         #txt = torch.cat([txt, torch.zeros_like(txt)], 0)
-        style = style.unsqueeze(0)
-        style = torch.cat([style, torch.zeros_like(style)], 0)
+        style_ten = torch.Tensor([style, self.model.y_embedder.style_enc.none])
         model_kwargs = {
             "content": txt,
-            "style": style,
+            "style": style_ten,
             "cfg_scale": 4.0,
         }
     

@@ -2,55 +2,45 @@ from typing import Optional
 
 import torch
 from torch import nn
+from torch._decomp.decompositions import dropout
 from torchvision.models import ResNet18_Weights, resnet18
 from transformers import RobertaModel, RobertaTokenizer
 
 
 class ContentEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, token_dims = 64, token_cnt = 8):
         super().__init__()
         self.tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-        self.roberta = RobertaModel.from_pretrained("roberta-base")
-        # self.roberta.requires_grad_(False)
-        self.roberta.eval()
-        self.dimensions = 768
+        self.embedder = nn.Embedding(len(self.tokenizer), token_dims)
+        self.token_cnt = token_cnt
 
     def transform(self, text):
         return self.tokenizer(text, padding=True, truncation=True, return_tensors="pt")
 
     def forward(self, x):
+        ids = self.tokenizer(x, padding=True, truncation=True, return_attention_mask=False, max_length=self.token_cnt, return_tensors="pt").to(self.device)["input_ids"]
         # May somehow swap dimensions before IDK
-        outputs = self.roberta(
-            input_ids=x["input_ids"], attention_mask=x["attention_mask"]
-        )
-        return outputs.last_hidden_state.mean(dim=1)
+        emb = self.embedder(ids)
+        return emb.view(len(x), -1)
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, label_cnt: int, dims = 64):
         super().__init__()
-        resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
-        self.resnet = nn.Sequential(*(list(resnet.children())[:-1]))
-        self.dimensions = 512
+        self.embedder = nn.Embedding(label_cnt + 1, dims)
+        self.none = label_cnt
 
     def forward(self, x):
-        return torch.flatten(self.resnet(x), 1)
+        return self.embedder(x)
 
 
 class LabelEncoder(nn.Module):
-    def __init__(self, dropout_prob: float, output_dim: Optional[int] = None):
+    def __init__(self, dropout_prob: float, label_cnt, output_dim = 576):
         super().__init__()
-        self.style_enc = StyleEncoder()
+        self.style_enc = StyleEncoder(label_cnt)
         self.content_enc = ContentEncoder()
-        dims = self.style_enc.dimensions + self.content_enc.dimensions
-        self.dimensions = output_dim if output_dim else dims
-        self.none_label = torch.zeros(self.dimensions)
-        self.projection = nn.Linear(dims, self.dimensions)
+        self.projection = nn.Linear(576, output_dim)
         self.dropout_prob = dropout_prob
-
-    def text_transform(self, text, device):
-        encoded = self.content_enc.transform(text)
-        return {k: v.to(device) for k, v in encoded.items()}
 
     def initialize_weights(self):
         nn.init.normal_(self.projection.weight, std=0.02)
@@ -66,15 +56,13 @@ class LabelEncoder(nn.Module):
         else:
             drop_ids = torch.Tensor(force_drop_ids == 1)
 
-        content = {
-            k: torch.where(
-                drop_ids.unsqueeze(1), torch.zeros_like(v, device=v.device), v
-            )
-            for k, v in content.items()
-        }
+        for i in range(drop_ids.shape[0]):
+            if drop_ids[i]:
+                content[i] = ""
+
         none_style = torch.ones_like(style, device=style.device)
         style = torch.where(
-            drop_ids.unsqueeze(1).unsqueeze(1).unsqueeze(1), none_style, style
+            drop_ids.unsqueeze(1), torch.full(style.shape, self.style_enc.none), style
         )
         return style, content
 

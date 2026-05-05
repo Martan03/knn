@@ -19,6 +19,12 @@ class IAMDataset(Dataset):
         self.data_folder = data
         self.generator = np.random.default_rng()
 
+        self.labels = {}
+        label = 0
+        for w in self.writer_dict.keys():
+            self.labels[w] = label
+            label += 1
+
     def rand_text(self) -> str:
         return self.generator.choice(self.data)[2]
 
@@ -30,8 +36,8 @@ class IAMDataset(Dataset):
         style = self.generator.choice(self.writer_dict[writer])[1]
 
         return {
-            "style": prep_img(self.data_folder / style),
-            "style_label": int(str(writer)),
+            "style": torch.Tensor(), # prep_img(self.data_folder / style),
+            "style_label": self.labels[writer],
             "expected": wrapping_prep_img(self.data_folder / expected),
             "transcript": txt,
         }
