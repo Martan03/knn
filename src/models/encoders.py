@@ -3,27 +3,30 @@ from typing import Optional
 import torch
 from torch import nn
 from torchvision.models import ResNet18_Weights, resnet18
-from transformers import RobertaModel, RobertaTokenizer
+from transformers import AutoTokenizer, T5EncoderModel
 
 
 class ContentEncoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
-        self.roberta = RobertaModel.from_pretrained("roberta-base")
-        # self.roberta.requires_grad_(False)
-        self.roberta.eval()
-        self.dimensions = 768
+        self.tokenizer = AutoTokenizer.from_pretrained("google/byt5-small")
+        self.byt5 = T5EncoderModel.from_pretrained("google/byt5-small")
+
+        self.byt5.eval()
+        self.byt5.requires_grad_(False)
+
+        self.dimensions = 1472
 
     def transform(self, text):
         return self.tokenizer(text, padding=True, truncation=True, return_tensors="pt")
 
     def forward(self, x):
         # May somehow swap dimensions before IDK
-        outputs = self.roberta(
-            input_ids=x["input_ids"], attention_mask=x["attention_mask"]
-        )
-        return outputs.last_hidden_state.mean(dim=1)
+        with torch.no_grad():
+            outputs = self.byt5(
+                input_ids=x["input_ids"], attention_mask=x["attention_mask"]
+            )
+        return outputs.last_hidden_state
 
 
 class StyleEncoder(nn.Module):

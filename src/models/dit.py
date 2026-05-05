@@ -18,7 +18,7 @@ from timm.layers.attention import Attention
 from timm.layers.mlp import Mlp
 from timm.layers.patch_embed import PatchEmbed
 
-from src.models.encoders import LabelEncoder
+from src.models.encoders import ContentEncoder, LabelEncoder, StyleEncoder
 
 
 def modulate(x, shift, scale):
@@ -125,12 +125,24 @@ class DiTBlock(nn.Module):
     A DiT block with adaptive layer norm zero (adaLN-Zero) conditioning.
     """
 
-    def __init__(self, hidden_size, num_heads, mlp_ratio=4.0, **block_kwargs):
+    def __init__(
+        self, hidden_size, num_heads, context_dim=1472, mlp_ratio=4.0, **block_kwargs
+    ):
         super().__init__()
         self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.attn = Attention(
             hidden_size, num_heads=num_heads, qkv_bias=True, **block_kwargs
         )
+
+        self.norm_cross = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=hidden_size,
+            num_heads=num_heads,
+            kdim=context_dim,
+            vdim=context_dim,
+            batch_first=True,
+        )
+
         self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
 
@@ -141,16 +153,29 @@ class DiTBlock(nn.Module):
             drop=0,
         )
         self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(), nn.Linear(hidden_size, 6 * hidden_size, bias=True)
+            nn.SiLU(), nn.Linear(hidden_size, 9 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c):
-        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
-            self.adaLN_modulation(c).chunk(6, dim=1)
-        )
+    def forward(self, x, c, context):
+        (
+            shift_msa,
+            scale_msa,
+            gate_msa,
+            shift_cross,
+            scale_cross,
+            gate_cross,
+            shift_mlp,
+            scale_mlp,
+            gate_mlp,
+        ) = self.adaLN_modulation(c).chunk(9, dim=1)
         x = x + gate_msa.unsqueeze(1) * self.attn(
             modulate(self.norm1(x), shift_msa, scale_msa)
         )
+
+        x_cross = modulate(self.norm_cross(x), shift_cross, scale_cross)
+        cross_out, _ = self.cross_attn(query=x_cross, key=context, value=context)
+        x = x + gate_cross.unsqueeze(1) * cross_out
+
         x = x + gate_mlp.unsqueeze(1) * self.mlp(
             modulate(self.norm2(x), shift_mlp, scale_mlp)
         )
@@ -208,7 +233,13 @@ class DiT(nn.Module):
             input_size, patch_size, in_channels, hidden_size, bias=True
         )
         self.t_embedder = TimestepEmbedder(hidden_size)
-        self.y_embedder = LabelEncoder(class_dropout_prob, hidden_size)
+
+        # TODO: remove this and make forward accept the outputs -> faster
+        self.style_enc = StyleEncoder()
+        self.style_proj = nn.Linear(512, hidden_size)
+        self.content_enc = ContentEncoder()
+        # self.y_embedder = LabelEncoder(class_dropout_prob, hidden_size)
+
         num_patches = self.x_embedder.num_patches
         # Will use fixed sin-cos embedding:
         self.pos_embed = nn.Parameter(
@@ -232,7 +263,11 @@ class DiT(nn.Module):
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
 
-        self.apply(_basic_init)
+        self.x_embedder.apply(_basic_init)
+        self.t_embedder.apply(_basic_init)
+        self.style_proj.apply(_basic_init)
+        self.blocks.apply(_basic_init)
+        self.final_layer.apply(_basic_init)
 
         # Initialize (and freeze) pos_embed by sin-cos embedding:
         pos_embed = get_2d_sincos_pos_embed(
@@ -248,13 +283,16 @@ class DiT(nn.Module):
         nn.init.constant_(self.x_embedder.proj.bias, 0)
 
         # Initialize label embedding table:
-        self.y_embedder.initialize_weights()
+        # self.y_embedder.initialize_weights()
 
         # Initialize timestep embedding MLP:
         assert isinstance(self.t_embedder.mlp[0].weight, torch.Tensor)
         assert isinstance(self.t_embedder.mlp[2].weight, torch.Tensor)
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
+
+        nn.init.normal_(self.style_proj.weight, std=0.02)
+        nn.init.constant_(self.style_proj.bias, 0)
 
         # Zero-out adaLN modulation layers in DiT blocks:
         for block in self.blocks:
@@ -295,14 +333,17 @@ class DiT(nn.Module):
         t: (N,) tensor of diffusion timesteps
         y: (N,) tensor of class labels
         """
-        x = (
-            self.x_embedder(x) + self.pos_embed
-        )  # (N, T, D), where T = H * W / patch_size ** 2
+        # (N, T, D), where T = H * W / patch_size ** 2
+        x = self.x_embedder(x) + self.pos_embed
         t = self.t_embedder(t)  # (N, D)
-        y = self.y_embedder(style, content, self.training)  # (N, D)
-        c = t + y  # (N, D)
+
+        style_emb = self.style_proj(self.style_enc(style))
+        # y = self.y_embedder(style, content, self.training)  # (N, D)
+        c = t + style_emb  # (N, D)
+        context = self.content_enc(content)
+
         for block in self.blocks:
-            x = block(x, c)  # (N, T, D)
+            x = block(x, c, context)  # (N, T, D)
         x = self.final_layer(x, c)  # (N, T, patch_size ** 2 * out_channels)
         x = self.unpatchify(x)  # (N, out_channels, H, W)
         return x
