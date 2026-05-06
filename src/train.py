@@ -30,6 +30,11 @@ class Trainer:
         requires_grad(self.ema, False)
         self.ema.eval()
 
+        if args.model:
+            checkpoint = torch.load(args.model, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+            self.ema.load_state_dict(checkpoint["ema"])
+
         self.diffusion = create_diffusion(timestep_respacing="")
         vae_type = "ema"
         vae = AutoencoderKL.from_pretrained(f"stabilityai/sd-vae-ft-{vae_type}")
@@ -178,6 +183,7 @@ class Trainer:
         return 0
 
     def sample(self, text: str, style: torch.Tensor, file: str):
+        print(f"Sampling: {text}")
         # txt = self.ema.y_embedder.text_transform([text], self.device)
         txt = self.model.content_enc.transform([text, ""])
         txt = {k: v.to(self.device) for k, v in txt.items()}
@@ -200,7 +206,7 @@ class Trainer:
         model_kwargs = {
             "content": txt,
             "style": style,
-            "cfg_scale": 1.0,
+            "cfg_scale": 4.0,
         }
 
         samples = self.diffusion.p_sample_loop(
