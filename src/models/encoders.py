@@ -36,8 +36,13 @@ class StyleEncoder(nn.Module):
         self.resnet = nn.Sequential(*(list(resnet.children())[:-1]))
         self.dimensions = 512
 
+        self.resnet.eval()
+        self.resnet.requires_grad_(False)
+
     def forward(self, x):
-        return torch.flatten(self.resnet(x), 1)
+        self.resnet.eval()
+        with torch.no_grad():
+            return torch.flatten(self.resnet(x), 1)
 
 
 class LabelEncoder(nn.Module):

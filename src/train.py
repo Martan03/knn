@@ -225,7 +225,6 @@ class Trainer:
 
     def test_overfit(self):
         self.model.train()
-        # Grab exactly ONE batch from the dataloader
         batch = next(iter(self.loader))
 
         for step in range(500):
@@ -240,7 +239,6 @@ class Trainer:
                 0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
             )
 
-            # Disable dropout for the overfit test! We want it to memorize perfectly.
             y = {
                 k: v.to(self.device)
                 for k, v in self.model.content_enc.transform(text_inputs).items()
@@ -259,7 +257,6 @@ class Trainer:
             if step % 50 == 0:
                 print(f"Step {step}, Loss: {loss.item()}")
 
-        # Force a sample using the exact text and style from the first item in the batch
         self.model.eval()
         self.sample(
             text_inputs[0], style_inputs[0], str(self.result_dir / "overfit_test.png")
