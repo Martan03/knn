@@ -19,14 +19,26 @@ class Trainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(self.device)
 
+        label_path = args.dataset / "IAM64_train.txt"
+        data_path = args.dataset / "IAM64-new/train"
+        dataset = IAMDataset(label_path, data_path)
+
         self.result_dir = Path(args.output)
         self.result_dir.mkdir(exist_ok=True)
 
         img_size = 256
         self.latent_size = img_size // 8
-        self.model = DiT_S_2(input_size=self.latent_size).to(self.device)
-
+        self.model = DiT_S_2(
+            style_cnt=len(dataset.labels),
+            input_size=self.latent_size,
+        ).to(self.device)
         self.ema = deepcopy(self.model).to(self.device)
+
+        if args.model:
+            checkpoint = torch.load(args.model, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+            self.ema.load_state_dict(checkpoint["ema"])
+
         requires_grad(self.ema, False)
         self.ema.eval()
 
@@ -44,9 +56,6 @@ class Trainer:
             weight_decay=0,
         )
 
-        label_path = args.dataset / "IAM64_train.txt"
-        data_path = args.dataset / "IAM64-new/train"
-        dataset = IAMDataset(label_path, data_path)
         self.loader = DataLoader(
             dataset,
             batch_size=args.batch,
@@ -98,7 +107,7 @@ class Trainer:
             )
 
             text_inputs = d["transcript"]
-            style_inputs = d["style"]
+            style_inputs = d["style_label"]
 
             # 10% of the time, drop the text (Classifier-Free Guidance)
             if np.random.rand() < 0.1:
@@ -106,7 +115,7 @@ class Trainer:
 
             # 10% of the time, drop the style
             if np.random.rand() < 0.1:
-                style_inputs = torch.zeros_like(style_inputs)
+                style_inputs = torch.full([len(style_inputs)], self.model.style_enc.none, device=self.device)
 
             y = {
                 k: v.to(self.device)
@@ -138,46 +147,15 @@ class Trainer:
         data = self.test_dataset[idx]
         self.sample(
             data["transcript"],
-            data["style"].to(self.device),
+            data["style_label"],
             str(self.result_dir / f"epoch{epoch}.png"),
         )
 
         self.ema.style_enc.train()
         return 0
 
-        loss_sum = 0
-        for d in track(self.test_loader, description="evaluating"):
-            x = d["expected"]
-            x = self.vae.encode(x).latent_dist.sample().mul_(0.18215)
-
-            y = self.label_enc.text_transform(d["transcript"], self.device)
-            z = torch.randn(
-                len(d["transcript"]),
-                4,
-                self.latent_size,
-                self.latent_size,
-                device=self.device,
-            )
-            model_kwargs = {
-                "content": y,
-                "style": d["style"],
-            }
-
-            samples = self.diffusion.p_sample_loop(
-                self.model.forward_with_cfg,
-                z.shape,
-                z,
-                clip_denoised=False,
-                model_kwargs=model_kwargs,
-                progress=True,
-                device=self.device,
-            )
-            samples, _ = samples.chunk(2, dim=0)
-            samples = self.vae.decode(samples / 0.18215).sample
-
-        return 0
-
-    def sample(self, text: str, style: torch.Tensor, file: str):
+    def sample(self, text: str, style: int, file: str):
+        print(f"sampling {text}")
         # txt = self.ema.y_embedder.text_transform([text], self.device)
         txt = self.model.content_enc.transform([text, ""])
         txt = {k: v.to(self.device) for k, v in txt.items()}
@@ -195,12 +173,12 @@ class Trainer:
         #     for k, v in txt.items()
         # }
         # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
-        style = style.unsqueeze(0)
-        style = torch.cat([style, torch.ones_like(style)], 0)
+        styl = torch.tensor(style, dtype=torch.int).unsqueeze(0)
+        styl = torch.cat([styl, torch.full(styl.shape, self.model.style_enc.none)], 0).to(self.device)
         model_kwargs = {
             "content": txt,
-            "style": style,
-            "cfg_scale": 1.0,
+            "style": styl,
+            "cfg_scale": 4.0,
         }
 
         samples = self.diffusion.p_sample_loop(
@@ -229,8 +207,15 @@ class Trainer:
 
         for step in range(500):
             x = batch["expected"].to(self.device)
+
             text_inputs = batch["transcript"]
-            style_inputs = batch["style"].to(self.device)
+            style_inputs = batch["style_label"].to(self.device)
+            if np.random.rand() < 0.1:
+                text_inputs = [""] * len(text_inputs)
+
+            if np.random.rand() < 0.1:
+                style_inputs = torch.full([len(style_inputs)], self.model.style_enc.none)
+
 
             with torch.no_grad():
                 x = self.vae.encode(x).latent_dist.sample().mul_(0.18215)
@@ -244,7 +229,7 @@ class Trainer:
                 for k, v in self.model.content_enc.transform(text_inputs).items()
             }
 
-            model_kwargs = {"content": y, "style": style_inputs}
+            model_kwargs = {"content": y, "style": style_inputs.to(self.device)}
 
             loss_dict = self.diffusion.training_losses(self.model, x, t, model_kwargs)
             loss = loss_dict["loss"].mean()
@@ -254,12 +239,15 @@ class Trainer:
             self.opt.step()
             update_ema(self.ema, self.model)
 
-            if step % 50 == 0:
-                print(f"Step {step}, Loss: {loss.item()}")
+            if step % 50 == 49:
+                print(f"Step {step + 1}, Loss: {loss.item()}")
 
+        print(f"{batch["transcript"]}")
         self.model.eval()
         self.sample(
-            text_inputs[0], style_inputs[0], str(self.result_dir / "overfit_test.png")
+            batch["transcript"][0],
+            batch["style_label"][0],
+            str(self.result_dir / "overfit_test.png")
         )
 
 

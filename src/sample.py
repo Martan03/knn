@@ -15,7 +15,7 @@ from torchvision.utils import save_image
 
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd, decode_img, prep_img
-from src.models.dit import DiT_S_8
+from src.models.dit import DiT_S_2, DiT_S_8
 from src.models.style import StyleNet
 
 
@@ -23,10 +23,16 @@ class Sampler:
     def __init__(self, args):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+        test_label_path = args.dataset / "IAM64_test.txt"
+        test_data_path = args.dataset / "IAM64-new/test"
+        self.test_dataset = IAMDataset(test_label_path, test_data_path)
         self.latent_size = 256 // 8
 
         checkpoint = torch.load(args.model, map_location=self.device)
-        self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
+        self.ema = DiT_S_2(
+            style_cnt=len(self.test_dataset.labels),
+            input_size=self.latent_size
+        ).to(self.device)
         self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
             self.device
         )
@@ -39,9 +45,7 @@ class Sampler:
         self.style_model = StyleNet(8).to(self.device)
         self.style_model.load_state_dict(style_checkpoint["model"])
 
-        test_label_path = args.dataset / "IAM64_test.txt"
-        test_data_path = args.dataset / "IAM64-new/test"
-        self.test_dataset = IAMDataset(test_label_path, test_data_path)
+
         self.test_loader = DataLoader(
             self.test_dataset,
             batch_size=args.batch,
@@ -157,7 +161,7 @@ def sample(args):
 
     latent_size = 256 // 8
 
-    ema = DiT_S_8(input_size=latent_size).to(device)
+    ema = DiT_S_2(input_size=latent_size).to(device)
     vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(device)
     ema.load_state_dict(checkpoint["model"])
     ema.eval()

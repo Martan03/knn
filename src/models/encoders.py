@@ -30,19 +30,30 @@ class ContentEncoder(nn.Module):
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, label_cnt: int, dims = 64):
         super().__init__()
-        resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
-        self.resnet = nn.Sequential(*(list(resnet.children())[:-1]))
-        self.dimensions = 512
-
-        self.resnet.eval()
-        self.resnet.requires_grad_(False)
+        self.embedder = nn.Embedding(label_cnt + 1, dims)
+        self.none = label_cnt
+        self.dimensions = dims
 
     def forward(self, x):
-        self.resnet.eval()
-        with torch.no_grad():
-            return torch.flatten(self.resnet(x), 1)
+        return self.embedder(x)
+
+
+# class StyleEncoder(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+#         resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
+#         self.resnet = nn.Sequential(*(list(resnet.children())[:-1]))
+#         self.dimensions = 512
+
+#         self.resnet.eval()
+#         self.resnet.requires_grad_(False)
+
+#     def forward(self, x):
+#         self.resnet.eval()
+#         with torch.no_grad():
+#             return torch.flatten(self.resnet(x), 1)
 
 
 class LabelEncoder(nn.Module):

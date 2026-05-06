@@ -16,11 +16,15 @@ class IAMDataset(Dataset):
         """
         self.writer_dict = parse_labels(labels)
         # self.data = [d for list in self.writer_dict.values() for d in list]
-        self.data = [d for sublist in self.writer_dict.values() for d in sublist][
-            :5000
-        ]
+        self.data = [d for sublist in self.writer_dict.values() for d in sublist]
         self.data_folder = data
         self.generator = np.random.default_rng()
+
+        self.labels = {}
+        label = 0
+        for w in self.writer_dict.keys():
+            self.labels[w] = label
+            label += 1
 
     def rand_text(self) -> str:
         return self.generator.choice(self.data)[2]
@@ -34,7 +38,7 @@ class IAMDataset(Dataset):
 
         return {
             "style": prep_img(self.data_folder / style),
-            "style_label": int(str(writer)),
+            "style_label": self.labels[writer],
             "expected": wrapping_prep_img(self.data_folder / expected),
             "transcript": txt,
         }
@@ -176,7 +180,7 @@ def collate_fn_padd(batch, device):
 
     return {
         "style": padded_imgs.to(device),
-        "style_label": torch.Tensor(style_label).to(device),
+        "style_label": torch.tensor(style_label, dtype=torch.long).to(device),
         "expected": targets.to(device),
         "transcript": transcript,
     }
