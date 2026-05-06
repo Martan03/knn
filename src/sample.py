@@ -159,15 +159,18 @@ def sample(args):
 
     ema = DiT_S_8(input_size=latent_size).to(device)
     vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(device)
-    ema.load_state_dict(checkpoint["ema"])
+    ema.load_state_dict(checkpoint["model"])
     ema.eval()
 
     diffusion = create_diffusion("250")
 
     style = prep_img(args.style).to(device)
-    text = args.text
+    txt = ema.content_enc.transform([args.text, ""])
+    txt = {k: v.to(device) for k, v in txt.items()}
+    # text = args.text
+    # txt = {k: v.to(device) for k, v in ema.content_enc.transform([text]).items()}
 
-    txt = ema.y_embedder.text_transform([text], device)
+    # txt = ema.y_embedder.text_transform([text], device)
     z = torch.randn(
         1,
         4,
@@ -176,7 +179,7 @@ def sample(args):
         device=device,
     )
     z = torch.cat([z, z], 0)
-    txt = {k: torch.cat([v, torch.zeros_like(v)], 0).to(device) for k, v in txt.items()}
+    # txt = {k: torch.cat([v, torch.zeros_like(v)], 0).to(device) for k, v in txt.items()}
     # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
     style = style.unsqueeze(0)
     style = torch.cat([style, torch.ones_like(style)], 0)

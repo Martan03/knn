@@ -118,13 +118,15 @@ def main():
     args = parser.parse_args()
     if args.command == "train":
         trainer = Trainer(args)
-        trainer.train()
+        # trainer.train()
+        trainer.test_overfit()
         trainer.save("last.pt")
     elif args.command == "run":
-        sampler = Sampler(args)
-        style = prep_img(args.style)
-        res = decode_img(sampler.sample(style, args.text))
-        save_image(res, args.output, nrow=4, normalize=True, value_range=(-1, 1))
+        sample(args)
+        # sampler = Sampler(args)
+        # style = prep_img(args.style)
+        # res = decode_img(sampler.sample(style, args.text))
+        # save_image(res, args.output, nrow=4, normalize=True, value_range=(-1, 1))
     elif args.command == "test":
         sampler = Sampler(args)
         diff, cer, fid = sampler.eval()

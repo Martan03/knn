@@ -11,19 +11,20 @@ from torchvision.utils import save_image
 
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd
-from src.models.dit import DiT_S_8
+from src.models.dit import DiT_S_2, DiT_S_8
 
 
 class Trainer:
     def __init__(self, args):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(self.device)
 
         self.result_dir = Path(args.output)
         self.result_dir.mkdir(exist_ok=True)
 
         img_size = 256
         self.latent_size = img_size // 8
-        self.model = DiT_S_8(input_size=self.latent_size).to(self.device)
+        self.model = DiT_S_2(input_size=self.latent_size).to(self.device)
 
         self.ema = deepcopy(self.model).to(self.device)
         requires_grad(self.ema, False)
@@ -95,10 +96,26 @@ class Trainer:
             t = torch.randint(
                 0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
             )
-            y = self.model.y_embedder.text_transform(d["transcript"], self.device)
+
+            text_inputs = d["transcript"]
+            style_inputs = d["style"]
+
+            # 10% of the time, drop the text (Classifier-Free Guidance)
+            if np.random.rand() < 0.1:
+                text_inputs = [""] * len(text_inputs)
+
+            # 10% of the time, drop the style
+            if np.random.rand() < 0.1:
+                style_inputs = torch.zeros_like(style_inputs)
+
+            y = {
+                k: v.to(self.device)
+                for k, v in self.model.content_enc.transform(text_inputs).items()
+            }
+            # y = self.model.y_embedder.text_transform(d["transcript"], self.device)
             model_kwargs = {
                 "content": y,
-                "style": d["style"],
+                "style": style_inputs,
             }
 
             loss_dict = self.diffusion.training_losses(self.model, x, t, model_kwargs)
@@ -115,7 +132,7 @@ class Trainer:
 
     @torch.no_grad()
     def eval(self, epoch) -> float:
-        self.ema.y_embedder.eval()
+        self.ema.style_enc.eval()
 
         idx = np.random.randint(0, len(self.test_dataset))
         data = self.test_dataset[idx]
@@ -125,7 +142,7 @@ class Trainer:
             str(self.result_dir / f"epoch{epoch}.png"),
         )
 
-        self.ema.y_embedder.train()
+        self.ema.style_enc.train()
         return 0
 
         loss_sum = 0
@@ -161,7 +178,10 @@ class Trainer:
         return 0
 
     def sample(self, text: str, style: torch.Tensor, file: str):
-        txt = self.ema.y_embedder.text_transform([text], self.device)
+        # txt = self.ema.y_embedder.text_transform([text], self.device)
+        txt = self.model.content_enc.transform([text, ""])
+        txt = {k: v.to(self.device) for k, v in txt.items()}
+
         z = torch.randn(
             1,
             4,
@@ -170,21 +190,21 @@ class Trainer:
             device=self.device,
         )
         z = torch.cat([z, z], 0)
-        txt = {
-            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device)
-            for k, v in txt.items()
-        }
+        # txt = {
+        #     k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device)
+        #     for k, v in txt.items()
+        # }
         # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
         style = style.unsqueeze(0)
-        style = torch.cat([style, torch.zeros_like(style)], 0)
+        style = torch.cat([style, torch.ones_like(style)], 0)
         model_kwargs = {
             "content": txt,
             "style": style,
-            "cfg_scale": 4.0,
+            "cfg_scale": 1.0,
         }
 
         samples = self.diffusion.p_sample_loop(
-            self.ema.forward_with_cfg,
+            self.model.forward_with_cfg,
             z.shape,
             z,
             clip_denoised=False,
@@ -202,6 +222,48 @@ class Trainer:
             "ema": self.ema.state_dict(),
         }
         torch.save(checkpoint, file)
+
+    def test_overfit(self):
+        self.model.train()
+        # Grab exactly ONE batch from the dataloader
+        batch = next(iter(self.loader))
+
+        for step in range(500):
+            x = batch["expected"].to(self.device)
+            text_inputs = batch["transcript"]
+            style_inputs = batch["style"].to(self.device)
+
+            with torch.no_grad():
+                x = self.vae.encode(x).latent_dist.sample().mul_(0.18215)
+
+            t = torch.randint(
+                0, self.diffusion.num_timesteps, (x.shape[0],), device=self.device
+            )
+
+            # Disable dropout for the overfit test! We want it to memorize perfectly.
+            y = {
+                k: v.to(self.device)
+                for k, v in self.model.content_enc.transform(text_inputs).items()
+            }
+
+            model_kwargs = {"content": y, "style": style_inputs}
+
+            loss_dict = self.diffusion.training_losses(self.model, x, t, model_kwargs)
+            loss = loss_dict["loss"].mean()
+
+            self.opt.zero_grad()
+            loss.backward()
+            self.opt.step()
+            update_ema(self.ema, self.model)
+
+            if step % 50 == 0:
+                print(f"Step {step}, Loss: {loss.item()}")
+
+        # Force a sample using the exact text and style from the first item in the batch
+        self.model.eval()
+        self.sample(
+            text_inputs[0], style_inputs[0], str(self.result_dir / "overfit_test.png")
+        )
 
 
 @torch.no_grad()
