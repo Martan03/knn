@@ -47,6 +47,12 @@ def main():
         type=Path,
         help="directory with resulting trained models",
     )
+    train_parser.add_argument(
+        "--style-model",
+        default=None,
+        type=str,
+        help="Path to a pretrained model to resume training",
+    )
 
     run_parser = subparsers.add_parser("run", help="Runs the model")
     run_parser.add_argument(

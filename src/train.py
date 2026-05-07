@@ -12,6 +12,7 @@ from torchvision.utils import save_image
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd
 from src.models.dit import DiT_S_2, DiT_S_8
+from src.models.style import StyleNet
 
 
 class Trainer:
@@ -21,10 +22,14 @@ class Trainer:
 
         self.result_dir = Path(args.output)
         self.result_dir.mkdir(exist_ok=True)
+        
+        style_checkpoint = torch.load(args.style_model, map_location=self.device)
+        style_model = StyleNet().to(self.device)
+        style_model.load_state_dict(style_checkpoint["model"])
 
         img_size = 256
         self.latent_size = img_size // 8
-        self.model = DiT_S_2(input_size=self.latent_size).to(self.device)
+        self.model = DiT_S_2(input_size=self.latent_size, style_enc=style_model).to(self.device)
 
         self.ema = deepcopy(self.model).to(self.device)
         requires_grad(self.ema, False)
