@@ -26,7 +26,7 @@ class ContentEncoder(nn.Module):
             outputs = self.byt5(
                 input_ids=x["input_ids"], attention_mask=x["attention_mask"]
             )
-        return outputs.last_hidden_state
+        return outputs.last_hidden_state, x["attention_mask"]
 
 
 class StyleEncoder(nn.Module):

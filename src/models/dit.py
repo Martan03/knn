@@ -156,7 +156,7 @@ class DiTBlock(nn.Module):
             nn.SiLU(), nn.Linear(hidden_size, 9 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c, context):
+    def forward(self, x, c, context, mask):
         (
             shift_msa,
             scale_msa,
@@ -173,7 +173,9 @@ class DiTBlock(nn.Module):
         )
 
         x_cross = modulate(self.norm_cross(x), shift_cross, scale_cross)
-        cross_out, _ = self.cross_attn(query=x_cross, key=context, value=context)
+        cross_out, _ = self.cross_attn(
+            query=x_cross, key=context, value=context, key_padding_mask=mask
+        )
         x = x + gate_cross.unsqueeze(1) * cross_out
 
         x = x + gate_mlp.unsqueeze(1) * self.mlp(
@@ -340,10 +342,13 @@ class DiT(nn.Module):
         style_emb = self.style_proj(self.style_enc(style))
         # y = self.y_embedder(style, content, self.training)  # (N, D)
         c = t + style_emb  # (N, D)
-        context = self.content_enc(content)
+
+        context, mask = self.content_enc(content)
+        pad_mask = mask == 0
 
         for block in self.blocks:
-            x = block(x, c, context)  # (N, T, D)
+            x = block(x, c, context, pad_mask)  # (N, T, D)
+
         x = self.final_layer(x, c)  # (N, T, patch_size ** 2 * out_channels)
         x = self.unpatchify(x)  # (N, out_channels, H, W)
         return x
@@ -359,7 +364,7 @@ class DiT(nn.Module):
         # For exact reproducibility reasons, we apply classifier-free guidance on only
         # three channels by default. The standard approach to cfg applies it to all channels.
         # This can be done by uncommenting the following line and commenting-out the line following that.
-        eps, rest = model_out[:, :self.in_channels], model_out[:, self.in_channels:]
+        eps, rest = model_out[:, : self.in_channels], model_out[:, self.in_channels :]
         # eps, rest = model_out[:, :3], model_out[:, 3:]
         cond_eps, uncond_eps = torch.split(eps, len(eps) // 2, dim=0)
         half_eps = uncond_eps + cfg_scale * (cond_eps - uncond_eps)
