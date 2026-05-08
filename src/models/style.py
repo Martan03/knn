@@ -2,9 +2,9 @@ from torch import nn
 import torch.nn.functional as F
 
 class StyleNet(nn.Module):
-    def __init__(self, sx=16, sy=8, dims=256):
+    def __init__(self, sx=16, sy=8):
         super(StyleNet, self).__init__()
-        self.dimensions = dims
+        self.dimensions = 64
                 
         self.asize = sx * sy
         self.conv1 = nn.Conv2d(3, 6, 5)
