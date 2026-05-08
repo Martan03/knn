@@ -239,7 +239,7 @@ class DiT(nn.Module):
 
         # TODO: remove this and make forward accept the outputs -> faster
         self.style_enc = style_enc
-        self.style_proj = nn.Linear(64, hidden_size)
+        self.style_proj = nn.Linear(self.style_enc.dimensions, hidden_size)
         self.content_enc = ContentEncoder()
         # self.y_embedder = LabelEncoder(class_dropout_prob, hidden_size)
 

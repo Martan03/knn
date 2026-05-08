@@ -1,32 +1,50 @@
 from typing import Optional
 
 import torch
+import math
 from torch import nn
 from torchvision.models import ResNet18_Weights, resnet18
 from transformers import AutoTokenizer, T5EncoderModel
+import torch.nn.functional as F
 
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        x = x + self.pe[:, :x.size(1)]
+        return self.dropout(x)
 
 class ContentEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, dim=1472):
         super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained("google/byt5-small")
-        self.byt5 = T5EncoderModel.from_pretrained("google/byt5-small")
+        self.embedder = nn.Embedding(len(self.tokenizer), dim)
+        self.position = PositionalEncoding(dim)
 
-        self.byt5.eval()
-        self.byt5.requires_grad_(False)
-
-        self.dimensions = 1472
-
+        self.dimensions = dim
+        
+        
     def transform(self, text):
-        return self.tokenizer(text, padding=True, truncation=True, return_tensors="pt")
+        return self.tokenizer(text, padding=True, return_tensors="pt")
 
     def forward(self, x):
-        # May somehow swap dimensions before IDK
-        with torch.no_grad():
-            outputs = self.byt5(
-                input_ids=x["input_ids"], attention_mask=x["attention_mask"]
-            )
-        return outputs.last_hidden_state, x["attention_mask"]
+        xe = self.embedder(x["input_ids"])
+        xp = self.position(xe)
+        return xp, x["attention_mask"]
 
 
 class StyleEncoder(nn.Module):
@@ -43,6 +61,8 @@ class StyleEncoder(nn.Module):
         self.resnet.eval()
         with torch.no_grad():
             return torch.flatten(self.resnet(x), 1)
+            
+            
 
 
 class LabelEncoder(nn.Module):
