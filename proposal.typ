@@ -70,9 +70,8 @@ předtrénovanou variantu modelu RoBERTa a~pro zakódování stylu písma jsme
 využili předtrénovaný model ResNet18. Pro difuzi jsme zvolili konfiguraci s
 minimálním počtem patchů. Výsledný model byl velký, pomalý a nefungoval:
 
-TODO: ukázka na trained3/last.pt
 #figure(
-    image("assets/final.png"),
+    image("assets/1.png"),
     caption: [Generovaný text první iterací modelu]
 )
 
@@ -86,9 +85,8 @@ obrázky připomínající text ve správném stylu. Samotný text na obrázcíc
 byl nečitelný a~jeho délka v~mnoha případech neodpovídala délce požadovaného
 textu.
 
-TODO: ukázka na trained8/last.pt
 #figure(
-    image("assets/final.png"),
+    image("assets/2.png"),
     caption: [Generovaný text druhou iterací modelu]
 )
 
@@ -96,10 +94,9 @@ V~třetí iteraci jsme upravili Cross Attention tak, aby zohlednil masku
 embeddingů. Dosažené výsledky modelu jsou téměř stejné, avšak generovaný text
 se zdá mít správnou délku:
 
-TODO: ukázka toho co trénoval martin :)
 #figure(
-    image("assets/final.png"),
-    caption: [Generovaný text poslední iterací modelu]
+    image("assets/3.png"),
+    caption: [Generovaný text třetí iterací modelu]
 )
 
 V~poslední iteraci jsme na místo modelu T5 dali tabulku embeddingů jednotlivých
@@ -114,8 +111,6 @@ stylem:
     image("assets/final.png"),
     caption: [Generovaný text poslední iterací modelu]
 )
-
-TODO: finální ukázka
 
 == Hodnocení
 
@@ -164,6 +159,24 @@ smysl, jelikož model generuje obrázky velmi podobné šumu.
 
 === Hodnocení poslední iterace
 
+#table(
+  columns: (auto, auto, auto),
+  table.header([*Porovnání stylu*], [*OCR CER*], [*FID*]),
+  [6.541908099502325], [0.9317171300921294], [21.89108657836914],
+)
+
+Výsledná hodnota porovnání stylu nám vyšla `6.542`, což je opět více než
+průměrná hodnota pro porovnání stylu písma různých pisatelů. To bude nejspíše
+dáno tím, že výsledný obrázek není oříznut do stejného formátu, jako
+v~datasetu.
+
+Character Error Rate `0.931` je stále velká hodnota, ale opět to je dáno
+formátem obrázku, kdy OCR očekává speficické zarovnání textu, což kvůli
+vlastnostem obrázků z~datasetu máme jiné.
+
+FID nám vyšla `21.891`, kdy běžně se hodnoty pod `50` berou jako dobré, což náš
+model splňuje.
+
 == Dataset
 
 Pro trénování i~evaluaci jsme využili dataset z~projektu One-DM, který je
@@ -171,6 +184,10 @@ dostupný na #link(
     "https://drive.google.com/drive/folders/108TB-z2ytAZSIEzND94dyufybjpqVyn6"
 )[google drive]. Tento dataset obsahuje jednotlivá slova. Trénovací část
 datasetu obsahuje přes 60000 anglických slov o více než 300 různých rukopisech.
+
+Jednotlivá slova jsou oříznuta tak, aby pokrývala celý obrázek. To způsobuje,
+že model generuje slova pokaždé jinak velká, případně linka, na kterou píše, je
+jinak vysoko. Toto však pro naše potřeby není problém.
 
 Ukázka obrázků slov z~námi zvoleného datasetu:
 
@@ -195,7 +212,32 @@ Ukázka obrázků slov z~námi zvoleného datasetu:
 
 == Natrénovaný model
 
-TODO: popsat jak dlouho se trénoval, grafy loss
+Finální model jsme trénovali na celém datasetu na 32 epoch, kde jedna
+epocha trvala zhruba 25 minut (okolo 13 hodin a 20 minut). Loss hodnoty měli
+během učení tendency klesat, což lze pozorovat v~následujícím grafu.
+
+#figure(image("assets/loss.png"))
+
+Ukázka vygenerovaných slov od různých pisatelů:
+
+#grid(
+    columns: (1fr, 1fr, 1fr),
+    gutter: 40pt,
+    align: bottom,
+
+    figure(
+        image("assets/seems.png", width: 100%),
+        caption: ["seems"]
+    ),
+    figure(
+        image("assets/to.png", width: 100%, height: 64pt, fit: "contain"),
+        caption: ["to"]
+    ),
+    figure(
+        image("assets/work.png", width: 100%),
+        caption: ["work"]
+    )
+)
 
 == Shrnutí
 

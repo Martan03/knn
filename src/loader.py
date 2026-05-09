@@ -142,11 +142,17 @@ def decode_img(img: torch.Tensor, height=64) -> torch.Tensor:
     image = np.array(img.detach().cpu())
     image = np.transpose(image, (1, 2, 0)).astype(np.float32)
     h, w, c = image.shape
+
     res = np.zeros((height, h // height * w, c))
     for i, t in enumerate(np.split(image, h // height)):
-        res[:, i : i + w, :] = t
-    res = np.transpose(res, (2, 0, 1))
+        res[:, i * w : i * w + w, :] = t
 
+    # m = np.min(res, axis=(0, 2))
+    # last = (m < 0.8).nonzero()[0]
+    # if len(last) > 0:
+    #     res = res[:, :last[-1], :]
+
+    res = np.transpose(res, (2, 0, 1))
     return torch.tensor(res, dtype=torch.float)
 
 

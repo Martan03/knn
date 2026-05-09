@@ -26,12 +26,12 @@ class Sampler:
         self.latent_size = 256 // 8
 
         checkpoint = torch.load(args.model, map_location=self.device)
-        self.ema = DiT_S_2(input_size=self.latent_size, style_enc=StyleNet()).to(self.device)
+        self.model = DiT_S_2(input_size=self.latent_size, style_enc=StyleNet()).to(self.device)
         self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
             self.device
         )
-        self.ema.load_state_dict(checkpoint["ema"])
-        self.ema.eval()
+        self.model.load_state_dict(checkpoint["model"])
+        self.model.eval()
 
         self.diffusion = create_diffusion("250")
 
@@ -52,7 +52,8 @@ class Sampler:
 
     def sample(self, img: torch.Tensor, text: str) -> torch.Tensor:
         style = img.to(self.device)
-        txt = self.ema.y_embedder.text_transform([text], self.device)
+        txt = self.model.content_enc.transform([text, ""])
+        txt = {k: v.to(self.device) for k, v in txt.items()}
         z = torch.randn(
             1,
             4,
@@ -61,10 +62,7 @@ class Sampler:
             device=self.device,
         )
         z = torch.cat([z, z], 0)
-        txt = {
-            k: torch.cat([v, torch.zeros_like(v)], 0).to(self.device)
-            for k, v in txt.items()
-        }
+
         # txt = torch.cat([txt, torch.zeros_like(txt)], 0)
         style = style.unsqueeze(0)
         style = torch.cat([style, torch.ones_like(style)], 0)
@@ -75,7 +73,7 @@ class Sampler:
         }
 
         samples = self.diffusion.p_sample_loop(
-            self.ema.forward_with_cfg,
+            self.model.forward_with_cfg,
             z.shape,
             z,
             clip_denoised=False,
@@ -92,7 +90,7 @@ class Sampler:
         total_diff = 0
         total_cer = 0
 
-        self.ema.eval()
+        self.model.eval()
         self.style_model.eval()
         self.fid.reset()
         for d in track(self.test_loader, description="evaluating"):
@@ -116,13 +114,14 @@ class Sampler:
                 ).item()
 
                 result = tensor_to_img(res_tensor)
+                result.save("test.png")
                 res = pytesseract.image_to_string(result, config="--psm 7").strip()
                 cer = get_cer([res], [txt])
                 total_cer += cer
 
-            exp = ((d["expected"] + 1.0) / 2.0 * 255).type(torch.uint8).cpu()
+            exp = ((d["expected"] + 1.0) / 2.0 * 255).type(torch.uint8)
             self.fid.update(exp, real=True)
-            self.fid.update(torch.stack(gen).cpu(), real=False)
+            self.fid.update(torch.stack(gen), real=False)
 
         cnt = len(self.test_dataset)
         return total_diff / cnt, total_cer / cnt, self.fid.compute().item()
@@ -139,7 +138,7 @@ def tensor_to_img(src: torch.Tensor) -> Image.Image:
 def get_cer(preds: list[str], targets: list[str]) -> float:
     total_dist = 0
     total_len = 0
-    print(preds, " -> ", targets)
+    print(targets, " -> ", preds)
 
     for pred, target in zip(preds, targets):
         dist = Levenshtein.distance(pred, target)
