@@ -23,9 +23,10 @@ class Trainer:
         self.result_dir = Path(args.output)
         self.result_dir.mkdir(exist_ok=True)
         
-        style_checkpoint = torch.load(args.style_model, map_location=self.device)
         style_model = StyleNet().to(self.device)
-        style_model.load_state_dict(style_checkpoint["model"])
+        if args.style_model:
+            style_checkpoint = torch.load(args.style_model, map_location=self.device)
+            style_model.load_state_dict(style_checkpoint["model"])
 
         img_size = 256
         self.latent_size = img_size // 8
