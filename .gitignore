@@ -1,5 +1,7 @@
 /dataset
 /proposal.pdf
+/report.pdf
+/*.zip
 __pycache__
 /trained*
 /test.png
