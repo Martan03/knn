@@ -12,6 +12,7 @@ from torchvision.utils import save_image
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd
 from src.models.dit import DiT_S_2, DiT_S_8
+from src.models.style import StyleNet
 
 
 class Trainer:
@@ -21,14 +22,24 @@ class Trainer:
 
         self.result_dir = Path(args.output)
         self.result_dir.mkdir(exist_ok=True)
+        
+        style_model = StyleNet().to(self.device)
+        if args.style_model:
+            style_checkpoint = torch.load(args.style_model, map_location=self.device)
+            style_model.load_state_dict(style_checkpoint["model"])
 
         img_size = 256
         self.latent_size = img_size // 8
-        self.model = DiT_S_2(input_size=self.latent_size).to(self.device)
+        self.model = DiT_S_2(input_size=self.latent_size, style_enc=style_model).to(self.device)
 
         self.ema = deepcopy(self.model).to(self.device)
         requires_grad(self.ema, False)
         self.ema.eval()
+
+        if args.model:
+            checkpoint = torch.load(args.model, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
+            self.ema.load_state_dict(checkpoint["ema"])
 
         self.diffusion = create_diffusion(timestep_respacing="")
         vae_type = "ema"
@@ -178,6 +189,7 @@ class Trainer:
         return 0
 
     def sample(self, text: str, style: torch.Tensor, file: str):
+        print(f"Sampling: {text}")
         # txt = self.ema.y_embedder.text_transform([text], self.device)
         txt = self.model.content_enc.transform([text, ""])
         txt = {k: v.to(self.device) for k, v in txt.items()}
@@ -200,7 +212,7 @@ class Trainer:
         model_kwargs = {
             "content": txt,
             "style": style,
-            "cfg_scale": 1.0,
+            "cfg_scale": 4.0,
         }
 
         samples = self.diffusion.p_sample_loop(

@@ -34,11 +34,24 @@ def main():
         "-b", "--batch", default=32, type=int, help="Batch size used for training"
     )
     train_parser.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        type=str,
+        help="Path to a pretrained model to resume training",
+    )
+    train_parser.add_argument(
         "-o",
         "--output",
         default=Path("trained"),
         type=Path,
         help="directory with resulting trained models",
+    )
+    train_parser.add_argument(
+        "--style-model",
+        default=None,
+        type=str,
+        help="Path to a pretrained model to resume training",
     )
 
     run_parser = subparsers.add_parser("run", help="Runs the model")
@@ -118,9 +131,8 @@ def main():
     args = parser.parse_args()
     if args.command == "train":
         trainer = Trainer(args)
-        # trainer.train()
-        trainer.test_overfit()
-        trainer.save("last.pt")
+        trainer.train()
+        # trainer.test_overfit()
     elif args.command == "run":
         sample(args)
         # sampler = Sampler(args)

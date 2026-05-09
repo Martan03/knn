@@ -15,7 +15,7 @@ from torchvision.utils import save_image
 
 from src.diffusion import create_diffusion
 from src.loader import IAMDataset, collate_fn_padd, decode_img, prep_img
-from src.models.dit import DiT_S_8
+from src.models.dit import DiT_S_2, DiT_S_8
 from src.models.style import StyleNet
 
 
@@ -26,7 +26,7 @@ class Sampler:
         self.latent_size = 256 // 8
 
         checkpoint = torch.load(args.model, map_location=self.device)
-        self.ema = DiT_S_8(input_size=self.latent_size).to(self.device)
+        self.ema = DiT_S_2(input_size=self.latent_size, style_enc=StyleNet()).to(self.device)
         self.vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(
             self.device
         )
@@ -157,7 +157,7 @@ def sample(args):
 
     latent_size = 256 // 8
 
-    ema = DiT_S_8(input_size=latent_size).to(device)
+    ema = DiT_S_2(input_size=latent_size, style_enc=StyleNet()).to(device)
     vae = AutoencoderKL.from_pretrained("stabilityai/sd-vae-ft-ema").to(device)
     ema.load_state_dict(checkpoint["model"])
     ema.eval()

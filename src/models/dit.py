@@ -213,6 +213,7 @@ class DiT(nn.Module):
 
     def __init__(
         self,
+        style_enc,
         input_size=32,
         patch_size=2,
         in_channels=4,
@@ -237,8 +238,8 @@ class DiT(nn.Module):
         self.t_embedder = TimestepEmbedder(hidden_size)
 
         # TODO: remove this and make forward accept the outputs -> faster
-        self.style_enc = StyleEncoder()
-        self.style_proj = nn.Linear(512, hidden_size)
+        self.style_enc = style_enc
+        self.style_proj = nn.Linear(self.style_enc.dimensions, hidden_size)
         self.content_enc = ContentEncoder()
         # self.y_embedder = LabelEncoder(class_dropout_prob, hidden_size)
 
