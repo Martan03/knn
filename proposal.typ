@@ -9,52 +9,118 @@ jsme se rozhodli difuzní modely využít pro generování psaného textu. Vstup
 bude ukázka ručně psaného textu a~text (jiný než na ukázce). Výstupem bude
 obrázek tohoto nového textu ve stejném rukopisu jako je ukázka.
 
+== Existující řešení
+
+Na základě našeho průzkumu již existujících projektů na námi vybrané téma jsme
+narazili na projekty #link("https://arxiv.org/pdf/2409.04004")[One-DM],
+a~#link("https://arxiv.org/pdf/2508.03256")[DiffBrush], které jsou velmi
+podobné tomu, co bychom chtěli implementovat. Z~toho důvodu jsou pro nás tyto
+projekty inspirací jak samotný model navrhnout
+
+One-DM funguje nad jednotlivými slovy. Cílem bylo vytvořit model, který dokáže
+dobře fungovat i~s~minimální ukázkou stylu na vstupu. Pro zlepšení extrakce
+stylu vstupní styl filtrují vysokofrekvenčním filtrem.
+
+Projekt DiffBrush je zaměřený na generování celých vět. Pro správné generování
+delších textů ze stylu speciálně extrahuje informaci o~vertikálních
+a~horizontálních mezerách v~textu, které poté dodrží při generování.
+
 == Způsob řešení
 
 #figure(
   image("assets/model.pdf"),
-  caption: [Přehled jak námi využíváný model vypadá.],
+  caption: [Přehled jak námi navržený model vypadá.],
 )
 
-Vstup modelu bude obsahovat dvě části - textový obsah, což je text který
-se má využít pro generování obrázku obsahující psaný text, a~obrázek obsahující
-referenční psaný text, sloužící jako reference stylu písma.
+Vstup modelu obsahuje dvě části - textový obsah, což je text který se má využít
+pro generování obrázku obsahující psaný text, a~obrázek obsahující referenční
+psaný text, sloužící jako reference stylu písma.
 
 Textový obsah se pošle do kodéru obsahu a referenční psaný text se
-pošle do kodéru stylu písma. Jejich výstupy jsou následně smíchány, což je
-využito při generování. Následuje samotný odšumovací proces, který začíná
-s~gausovským šumem jako vstupem a~postupně jej odšumuje na základě
-smíchaných vstupů, které tento proces řídí.
+pošle do kodéru stylu písma. Zakódovaný styl písma podmiňuje difuzní proces.
+Výstup zakódovaného textu je do difuzního procesu předán pomocí Cross
+Attention.
 
-Implementačním jazykem jsme zvolili Python v kombinaci s knihovnou PyTorch.
-Pro extrakci stylu písma jsme využili předtrénovaný ResNet18. Pro zakódování
-písma jsme využili předtrénovaný model RoBERTa. Jako difuzní model jsme
-využili upravenou variantu modelu
-#link("https://github.com/facebookresearch/DiT")[DiT].
+Implementačním jazykem jsme zvolili Python v kombinaci s~knihovnou PyTorch.
+Pro extrakci stylu písma využíváme konvoluční síť, kterou jsme předtrénovali
+pomocí Supervised Contrastive Learning. Pro zakódování písma využíváme
+indexovaný embedding jednotlivých znaků. Jako základ pro implementaci samotné
+difuze jsme využili #link("https://github.com/facebookresearch/DiT")[DiT].
 
-Výstupem modelu RoBERTa je sada vektorů (pro delší vstupy je vektorů více).
-Tuto sadu vektorů agregujeme do jednoho vektoru průměrováním komponent vektorů.
-Pro delší vstupy by toto mohlo být problémové, protože se zde ztrácí informace
-o pozici. Protože ale model trénujeme jen nad jednotlivými slovy, tak by tohle
-pro nás neměl být problém.
-
-Obrázek vstupující do Style Encoderu je řádek textu (/slovo) o výšce 64 pixelů
-a variabilní šířce. Obrázek je před vstupem do modelu invertován. Toto může být
-výhodné, protože původní obrázek je černý text na bílém pozadí. Invertovaný
-obrázek je bílý text na černém pozadí. Bílá barva je reprezentována pomocí
-hodnoty 1 a černá pomocí hodnoty 0. V invertovaném obrázku je pak tedy aktivace
-vysoká v místě, kde se nachází text, narozdíl od původního obrázku, kde je
-aktivace vysoká v místech, kde se text nenachází.
-
-Výsledný výstup Style Encoderu a Content Encoderu konkatenujeme do jednoho
-vektoru. Tento vektor je zpracován jednou lineární vrstvou a slouží jako
-guidance pro difuzní model.
+Obrázek vstupující do Style Encoderu je řádek textu (/slovo) o~výšce 64 pixelů
+a~variabilní šířce.
 
 Samotný difuzní model generuje čtvercové obrázky velikosti 256×256 obsahující
 daný text na několika řádcích. Každý řádek má výšku 64 pixelů.
 
-#pagebreak()
-== Hodnocení učení
+== Experimenty
+
+Celkově jsme měli zhruba 15 verzí modelu. Zde jsme vybrali jen relevantní změny
+po kterých jsme model trénovali po delší dobu. Pro všechny ukázky je na vstupu
+text `hello` a~následující ukázka stylu:
+
+#figure(
+    image("assets/czechoslovak.png"),
+    caption: [Referenční styl písma využit pro generování]
+)
+
+V první iteraci jsme text i~styl kombinovali do vektoru fixní délky, který
+podmiňoval difuzní proces. Pro zakódování písma jsme využili nejmenší
+předtrénovanou variantu modelu RoBERTa a~pro zakódování stylu písma jsme
+využili předtrénovaný model ResNet18. Pro difuzi jsme zvolili konfiguraci s
+minimálním počtem patchů. Výsledný model byl velký, pomalý a nefungoval:
+
+TODO: ukázka na trained3/last.pt
+#figure(
+    image("assets/final.png"),
+    caption: [Generovaný text první iterací modelu]
+)
+
+V druhé iteraci jsme na místo modelu RoBERTa využili předtrénovaný enkodér
+z~modelu T5, u~kterého jsme vypnuli učení. Výsledné textové embeddingy jsme
+začali předávat pomocí Cross Attention, kterou jsme do modelu DiT přidali.
+Model ResNet18 jsme nechali, ale také jsme u~něj vypnuli učení. Konfiguraci
+difuze jsme upravili tak, že jsme zvětšili počet patchů. Výsledný model byl
+stále velký a~o~něco pomalejší (kvůli většímu počtu patchů), ale již generoval
+obrázky připomínající text ve správném stylu. Samotný text na obrázcích však
+byl nečitelný a~jeho délka v~mnoha případech neodpovídala délce požadovaného
+textu.
+
+TODO: ukázka na trained8/last.pt
+#figure(
+    image("assets/final.png"),
+    caption: [Generovaný text druhou iterací modelu]
+)
+
+V~třetí iteraci jsme upravili Cross Attention tak, aby zohlednil masku
+embeddingů. Dosažené výsledky modelu jsou téměř stejné, avšak generovaný text
+se zdá mít správnou délku:
+
+TODO: ukázka toho co trénoval martin :)
+#figure(
+    image("assets/final.png"),
+    caption: [Generovaný text poslední iterací modelu]
+)
+
+V~poslední iteraci jsme na místo modelu T5 dali tabulku embeddingů jednotlivých
+znaků, kde jednotlivé embeddingy se v~průběhu učí. Na místě ResNet18 jsme
+využili vlastní malou konvoluční síť, kterou jsme předtrénovali pomocí
+Supervised Contrastive Learning tak, aby pro stejné pisatele dávala na výstup
+podobné vektory a~pro různé pisatele vektory rozdílné. Výsledný model je mnohem
+menší, podobně rychlý a~generovaný text je již většinou čitelný a~se správným
+stylem:
+
+#figure(
+    image("assets/final.png"),
+    caption: [Generovaný text poslední iterací modelu]
+)
+
+TODO: finální ukázka
+
+== Hodnocení
+
+V~této kapitole jsme pro porovnání ponechali původní výsledky hodnocení první
+iterace a~přidali jsme hodnocení druhé iterace.
 
 Pro evaluaci učení jsme využili tři různé metriky: porovnání stylu písma,
 Character Error Rate po transkripci textu a FID.
@@ -65,15 +131,15 @@ vygenerovaném obrázku, kdy metriku počítáme jako sumu absolutních hodnot
 rozdílů jednotlivých výstupů neuronové sítě pro extrakci stylu.
 
 OCR CER značí Character Error Rate z~transkripce textu z~generovaného obrázku
-s~očekávaným textem. Tato evaluace říká, jak čitelný a přesný text je modelem
+s~očekávaným textem. Tato evaluace říká, jak čitelný a~přesný text je modelem
 generován. Character Error Rate konkrétně počítá, kolik změn je třeba udělat,
 aby texty byly stejné, kdy změna je vložení, smazání nebo substituce znaku.
 
-Pomocí FID, neboli Fréchet Inception Distance, následně spočítáme nad celým
-trénovacím datasetem, abychom zjistili podobnost generovaných obrázků
-s~testovacím datasetem.
+Pomocí FID, neboli Fréchet Inception Distance, následně spočítáme vzdálenost
+generovaných obrázků od obrázků z~celého datasetu, abychom zjistili jejich
+podobnost.
 
-=== Výsledky měření
+=== Hodnocení první iterace
 
 #table(
   columns: (auto, auto, auto),
@@ -96,52 +162,58 @@ naměřená hodnota výrazně přesahuje.
 Vyhodnocené hodnoty však vzhledem k~aktuálnímu stavu našeho modelu dávají zcela
 smysl, jelikož model generuje obrázky velmi podobné šumu.
 
-== Experimenty
-
-Na místě Resnetu bychom rádi zkusili využít jinou síť specializovanou pro
-detekci pisatele z ukázky jeho rukopisu.
-
-Aktuálně využíváme předtrénovaný model RoBERTa, který rozdělí text na tokeny,
-kde každý token může obsahovat více znaků. Chtěli bychom vyzkoušet využít také
-síť, která bude vstupní text rozdělovat znak po znaku.
-
-== Inspirace
-
-Na základě našeho průzkumu již existujících projektů na námi vybrané téma jsme
-narazili na projekty #link("https://arxiv.org/pdf/2409.06065")[DiffusionPen],
-#link("https://arxiv.org/pdf/2409.04004")[One-DM]
-a~#link("https://arxiv.org/pdf/2508.03256")[DiffBrush], které
-jsou velmi podobné tomu, co bychom chtěli implementovat. Z~toho důvodu jsou pro
-nás tyto projekty inspirací jak samotný model navrhnout.
+=== Hodnocení poslední iterace
 
 == Dataset
 
-Našli jsme dva vhodné datasety. Jeden z projektu One-DM dostupný na #link("https://drive.google.com/drive/folders/108TB-z2ytAZSIEzND94dyufybjpqVyn6")[google drive]. Tento obsahuje zejména jednotlivá slova. Druhý dataset je z
-projektu DiffBrush, dostupný na #link("https://github.com/dailenson/DiffBrush/tree/main/test_data")[GitHub]. Tento již obsahuje delší věty.
+Pro trénování i~evaluaci jsme využili dataset z~projektu One-DM, který je
+dostupný na #link(
+    "https://drive.google.com/drive/folders/108TB-z2ytAZSIEzND94dyufybjpqVyn6"
+)[google drive]. Tento dataset obsahuje jednotlivá slova. Trénovací část
+datasetu obsahuje přes 60000 anglických slov o více než 300 různých rukopisech.
 
-Aktuálně pro trénování využíváme dataset z One-DM obsahující přes 60000
-anglických slov o více než 300 různých rukopisech.
+Ukázka obrázků slov z~námi zvoleného datasetu:
 
-== Aktuální stav
+#grid(
+    columns: (1fr, 1fr, 1fr),
+    gutter: 40pt,
+    align: bottom,
 
-Máme implementovanou iniciální strukturu modelu, kterou jsme se pokusili
-natrénovat. Ještě jsme neimplementovali žádný ze způsobů hodnocení učení, ale
-je zjevné, že model se nebyl schopen úlohu naučit. Důvodem je pravděpodobně
-nedostatečný čas učení. Je také ale možné, že se model učí pomalu, protože něco
-děláme špatně.
+    figure(
+        image("assets/c04-110-00-00.png", width: 100%),
+        caption: ["Become"]
+    ),
+    figure(
+        image("assets/c04-134-02-02.png", width: 100%),
+        caption: ["stars"]
+    ),
+    figure(
+        image("assets/c04-144-04-00.png", width: 100%),
+        caption: ["success"]
+    )
+)
 
-#image("assets/c04-110-00-00.png")
+== Natrénovaný model
 
-Model jsme testovali na vstupu, kde jako styl je obrázek s textem `Become` a
-jako požadovaný text jsme zadali text `hello`. První verze modelu po osmi
-epochách vytvořila následující výstup:
+TODO: popsat jak dlouho se trénoval, grafy loss
 
-#image("assets/before.png")
+== Shrnutí
 
-Druhá verze modelu, kde jsme upravili způsob reprezentace null label a přestali
-invertovat obrázek měla po šesti epochách následující výstup:
+Při návrhu modelu velmi záleží na jeho struktuře. Často je mnohem lepší využít
+jednoduché specializované části než obecné předtrénované modely. Náš první
+model obsahoval mnoho samostatně kvalitních částí, které však byly špatně
+poskládané dohromady, a~ve výsledku se model nenaučil, co jsme chtěli.
 
-#image("assets/now.png")
+Náš poslední model je již mnohem menší a~jednodušší. Jednotlivé části byly
+specializované na svoji činnost a~model má na první pohled výrazně lepší
+výsledky.
+
+Výsledný model je schopný generovat většinou čitelná samostatná slova v~zadaném
+stylu. Není však schopný generovat delší úseky textu. Důvodem je trénovací
+dataset, který obsahuje pouze jednotlivá slova nebo interpunkci. Model tak
+nikdy nebyl učen na znacích jako je například mezera a~tudíž neví, co s~nimi
+dělat. V~případě jiného datasetu je pravděpodobné, že model by se naučil
+generovat i~delší úseky textu.
 
 == GIT repozitář
 
