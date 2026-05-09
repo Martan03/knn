@@ -38,5 +38,8 @@ Run the model on style image and text:
 
 # Links
 
+- [DiT](https://github.com/facebookresearch/DiT)
+
+Inspiration:
 - [One-DM](https://arxiv.org/pdf/2409.04004)
 - [DiffusionPen](https://www.ecva.net/papers/eccv_2024/papers_ECCV/papers/11492.pdf)
