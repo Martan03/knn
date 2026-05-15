@@ -7,7 +7,7 @@
 #set document(
     title: upper[Generování psaného textu\ pomocí difuzních modelů]
 )
-#set text(size: 22pt, font: "Lexend")
+#set text(size: 21pt, font: "Lexend")
 
 #show heading: it => block(
     fill: rgb("#D9D9D9"),
@@ -61,10 +61,14 @@
 
 #grid(
     columns:(2fr, 1fr),
-    gutter: 50pt,
+    gutter: 40pt,
     image(width: 100%, "assets/model.pdf"),
-    [
-        - Vycházíme z DiTu
+    align(horizon)[
+        - Generování zadaného textu se zadaným stylem
+        - Modifikovaná verze DiTu
+        - Style Encoder realizován konvoluční sítí
+        - Content Encoder je tabulka embeddingů jednotlivých znaků
+        - Content je připojen přes Cross Attention do DiTu
     ]
 )
 
@@ -73,41 +77,54 @@
     gutter: 3cm,
     [
         = Experimenty
-        Experimenty na textu "hello" a stylu:
+        Experimenty na textu "hello" a~referenčím stylu:
         #align(center, image("assets/czechoslovak.png"))
+
         #grid(
             columns: (1fr, 2fr),
             gutter: 20pt,
-            image("assets/1.png"),
+            align(horizon, image("assets/1.png")),
             [
                 *Verze 1*
                 - RoBERTa jako text encoder
+                - ResNet18 jako style encoder
                 - Kombinování textu i~stylu do vektoru fixní délky
+                - Málo patchů v~DiT
             ]
         )
+        #v(20pt)
         #grid(
             columns: (2fr, 1fr),
             gutter: 20pt,
             [
-                Druhá iterace modelu.
+                *Verze 2*
+                - T5 Encoder jako text encoder
+                - T5 Encoder se neučí
+                - ResNet18 se neučí
+                - Více patchů v~DiT
             ],
-            image("assets/2.png")
+            align(horizon, image("assets/2.png")),
         )
+        #v(20pt)
         #grid(
             columns: (1fr, 2fr),
             gutter: 20pt,
-            image("assets/3.png"),
+            align(horizon, image("assets/3.png")),
             [
-                Třetí iterace modelu.
+                *Verze 3*
+                - Zohlednění masky text embeddingů v~Cross Attention
             ],
         )
+        #v(20pt)
         #grid(
             columns: (2fr, 1fr),
             gutter: 20pt,
             [
-                Finální iterace modelu.
+                *Finální verze*
+                - Content Encoder je tabulka embeddingů jednotlivých znaků
+                - Style Encoder je námi předtrénovaná konvoluční síť
             ],
-            image("assets/final.png")
+            align(horizon, image("assets/final.png")),
         )
     ],
     [
@@ -115,6 +132,7 @@
         - Z projektu One-DM
         - Přes 60000 anglických slov od více než 300 pisatelů
 
+        #v(22pt)
         #grid(
             columns: (1fr, 1fr, 1fr),
             gutter: 40pt,
@@ -124,11 +142,23 @@
             image("assets/c04-134-02-02.png"),
             image("assets/c04-144-04-00.png"),
         )
+        #v(40pt)
 
         = Dosažené výsledky
 
-        - Text "seems to work"
-        - Jednotlivá slova různí pisatelé
+        *Referenční obrázky pro jednotlivá slova:*
+        #grid(
+            columns: (auto, 1fr, auto),
+            align: bottom,
+            gutter: 10pt,
+
+            image("assets/seems-style.png", height: 60pt, fit: "contain"),
+            image("assets/to-style.png", width: 100%),
+            image("assets/work-style.png", height: 60pt),
+        )
+        #v(25pt)
+
+        *Texty "seems", "to" a "work":*
         #grid(
             columns: (1fr, 1fr, 1fr),
             align: bottom,
@@ -137,5 +167,21 @@
             image("assets/to.png", width: 100%, height: 70pt, fit: "contain"),
             image("assets/work.png", width: 100%),
         )
+        #v(25pt)
+
+        *Hodnocení modelu:*
+        #table(
+            columns: (auto, 1fr, 1fr),
+            table.header(
+                align(center)[*Porovnání stylu*],
+                align(center)[*OCR CER*],
+                align(center)[*FID*]
+            ),
+            align(center)[6.5419],
+            align(center)[0.9317],
+            align(center)[21.8910],
+        )
+        (pro stejné styly by porovnání stylu mělo být okolo 3.14 a pro rozdílné
+        okolo 5.28)
     ]
 )
